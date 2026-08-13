@@ -42,6 +42,7 @@ A chave do modulo e `gestao-grafica`. O super admin tambem tem acesso. Neste cic
 25. Pos-venda pode gerar nova oportunidade e tarefa de retorno a partir de reclamacao, baixa satisfacao ou chance de recorrencia.
 26. Dashboard exibe ticket medio aprovado, margem media estimada, descontos, aprovacoes abertas, producao atrasada/bloqueada e entregas no prazo.
 27. Administradores do modulo podem configurar papeis operacionais da equipe por usuario do tenant.
+28. Funil visual usa etapas configuraveis por tenant em `GraphicPipelineStage`, com validacao no backend ao mover oportunidades.
 
 ## Dados insuficientes
 

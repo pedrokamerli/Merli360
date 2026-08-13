@@ -28,6 +28,7 @@ const opportunityInitial = {
   source: "Atendimento",
   productInterest: "Banner",
   estimatedValue: "",
+  status: "OPEN",
   nextAction: "Enviar orcamento",
   nextFollowUp: ""
 };
@@ -118,8 +119,11 @@ export function GestaoGraficaWorkspace() {
   const materials = data?.materials || [];
   const processes = data?.processes || [];
   const settings = data?.settings || [];
+  const stages = data?.stages || [];
   const users = data?.users || [];
   const settingMap = Object.fromEntries(settings.map((item: AnyRow) => [item.key, item.value]));
+  const activeStages = stages.length ? stages : [{ name: "OPEN" }, { name: "QUOTE_CREATED" }, { name: "WON" }, { name: "LOST" }];
+  const pipelineStages = activeStages.map((stage: AnyRow) => ({ ...stage, items: (data?.opportunities || []).filter((item: AnyRow) => item.status === stage.name) }));
 
   async function saveCatalog(type: string, payload: AnyRow) {
     setSaving(true);
@@ -203,6 +207,16 @@ export function GestaoGraficaWorkspace() {
     setMessage(success);
     await load();
     return true;
+  }
+
+  async function moveOpportunityStage(item: AnyRow, status: string) {
+    const payload: AnyRow = { status, nextAction: item.nextAction, nextFollowUp: item.nextFollowUp };
+    if (status === "LOST") {
+      const lossReason = prompt("Motivo da perda");
+      if (!lossReason) return;
+      payload.lossReason = lossReason;
+    }
+    await updateOpportunity(item.id, payload, "Etapa atualizada.");
   }
 
   async function recordOpportunityContact(item: AnyRow) {
@@ -560,6 +574,13 @@ export function GestaoGraficaWorkspace() {
               </div>
             </div>
           ) : null}
+          {data?.canManageSettings ? (
+            <CatalogBox title="Etapa do funil" fields={[
+              { key: "name", placeholder: "Nome da etapa" },
+              { key: "position", placeholder: "Posicao", value: String(stages.length) },
+              { key: "kind", placeholder: "Tipo", value: "ACTIVE" }
+            ]} onSave={(payload) => saveCatalog("stage", payload)} />
+          ) : null}
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-3">
           <CatalogList title="Produtos" rows={products} value={(item) => item.category || item.unit} />
@@ -580,6 +601,9 @@ export function GestaoGraficaWorkspace() {
             <input className={inputClass} placeholder="Email" value={opportunityForm.email} onChange={(event) => setOpportunityForm({ ...opportunityForm, email: event.target.value })} />
             <input className={inputClass} placeholder="Cidade" value={opportunityForm.city} onChange={(event) => setOpportunityForm({ ...opportunityForm, city: event.target.value })} />
             <input className={inputClass} placeholder="Oportunidade" value={opportunityForm.title} onChange={(event) => setOpportunityForm({ ...opportunityForm, title: event.target.value })} />
+            <select className={inputClass} value={opportunityForm.status} onChange={(event) => setOpportunityForm({ ...opportunityForm, status: event.target.value })}>
+              {activeStages.map((stage: AnyRow) => <option key={stage.name} value={stage.name}>{stage.name}</option>)}
+            </select>
             <select className={inputClass} value={opportunityForm.productInterest} onChange={(event) => setOpportunityForm({ ...opportunityForm, productInterest: event.target.value })}>
               {["Banner", "Adesivo", "Placa ACM", "Chaveiro imobiliario", "Impresso comercial", "Comunicacao visual"].map((item) => <option key={item}>{item}</option>)}
             </select>
@@ -631,6 +655,35 @@ export function GestaoGraficaWorkspace() {
             <FileText size={16} /> Gerar orcamento
           </button>
         </form>
+      </section>
+
+      <section className="surface-panel p-4">
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <h2 className="text-lg font-black text-slate-950">Funil da grafica</h2>
+          <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{openOpportunities.length} abertas</span>
+        </div>
+        <div className="flex gap-3 overflow-x-auto pb-2">
+          {pipelineStages.map((stage: AnyRow) => (
+            <div key={stage.name} className="w-64 shrink-0 rounded-lg bg-slate-50 p-3">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h3 className="truncate text-sm font-black text-slate-800">{stage.name}</h3>
+                <span className="rounded-full bg-white px-2 py-1 text-xs font-black text-slate-600">{stage.items.length}</span>
+              </div>
+              <div className="space-y-2">
+                {stage.items.slice(0, 6).map((item: AnyRow) => (
+                  <article key={item.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                    <p className="text-sm font-black text-slate-900">{item.title}</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">{item.nextAction || "Sem proximo passo"} | {day(item.nextFollowUp)}</p>
+                    <select className={`${inputClass} mt-2`} defaultValue={item.status} onChange={(event) => moveOpportunityStage(item, event.target.value)}>
+                      {activeStages.map((option: AnyRow) => <option key={option.name} value={option.name}>{option.name}</option>)}
+                    </select>
+                  </article>
+                ))}
+                {!stage.items.length ? <p className="rounded-lg bg-white p-3 text-xs font-bold text-slate-500">Sem oportunidades.</p> : null}
+              </div>
+            </div>
+          ))}
+        </div>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-3">

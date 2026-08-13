@@ -1,4 +1,4 @@
-export const graphicCatalogTypes = ["product", "material", "process", "setting"] as const;
+export const graphicCatalogTypes = ["product", "material", "process", "setting", "stage"] as const;
 
 export type GraphicCatalogType = typeof graphicCatalogTypes[number];
 

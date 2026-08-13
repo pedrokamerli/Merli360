@@ -18,6 +18,7 @@ function modelFor(db: any, type: string) {
   if (type === "material") return db.graphicMaterial;
   if (type === "process") return db.graphicProcess;
   if (type === "setting") return db.graphicSetting;
+  if (type === "stage") return db.graphicPipelineStage;
   return null;
 }
 
@@ -27,13 +28,14 @@ export async function GET(request: NextRequest) {
     assertGraphicAccess(user);
     await ensureGraphicDefaults(user.tenantId);
     const db = prisma as any;
-    const [products, materials, processes, settings] = await Promise.all([
+    const [products, materials, processes, settings, stages] = await Promise.all([
       db.graphicProduct.findMany({ where: { tenantId: user.tenantId }, orderBy: { name: "asc" } }),
       db.graphicMaterial.findMany({ where: { tenantId: user.tenantId }, orderBy: { name: "asc" } }),
       db.graphicProcess.findMany({ where: { tenantId: user.tenantId }, orderBy: { name: "asc" } }),
-      db.graphicSetting.findMany({ where: { tenantId: user.tenantId }, orderBy: { key: "asc" } })
+      db.graphicSetting.findMany({ where: { tenantId: user.tenantId }, orderBy: { key: "asc" } }),
+      db.graphicPipelineStage.findMany({ where: { tenantId: user.tenantId }, orderBy: { position: "asc" } })
     ]);
-    return NextResponse.json({ products, materials, processes, settings });
+    return NextResponse.json({ products, materials, processes, settings, stages });
   } catch (error: any) {
     return NextResponse.json({ error: "Nao foi possivel carregar o catalogo grafico.", detail: process.env.NODE_ENV === "production" ? undefined : String(error?.message || error) }, { status: error?.message === "UNAUTHORIZED" ? 401 : 500 });
   }
@@ -45,7 +47,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const type = String(body.type || "");
     if (!isGraphicCatalogType(type)) return NextResponse.json({ error: "Tipo de cadastro invalido." }, { status: 400 });
-    await assertGraphicPermission(user, type === "setting" ? "settings:manage" : "catalog:manage");
+    await assertGraphicPermission(user, type === "setting" || type === "stage" ? "settings:manage" : "catalog:manage");
     await ensureGraphicDefaults(user.tenantId);
     const db = prisma as any;
     let item: any;
@@ -140,6 +142,17 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (type === "stage") {
+      const name = String(body.name || "").trim();
+      if (!name) return NextResponse.json({ error: "Informe a etapa do funil." }, { status: 400 });
+      const position = Number.isFinite(Number(body.position)) ? Number(body.position) : await db.graphicPipelineStage.count({ where: { tenantId: user.tenantId } });
+      item = await db.graphicPipelineStage.upsert({
+        where: { tenantId_name: { tenantId: user.tenantId, name } },
+        update: { position, kind: String(body.kind || "ACTIVE"), active: body.active === undefined ? true : Boolean(body.active), updatedById: user.id },
+        create: { tenantId: user.tenantId, name, position, kind: String(body.kind || "ACTIVE"), active: body.active === undefined ? true : Boolean(body.active), createdById: user.id, updatedById: user.id }
+      });
+    }
+
     await audit({ tenantId: user.tenantId, userId: user.id, action: "graphic_create_catalog", entity: type, entityId: item?.id, request });
     return NextResponse.json({ item });
   } catch (error: any) {
@@ -155,7 +168,7 @@ export async function PUT(request: NextRequest) {
     const type = String(body.type || "");
     const id = String(body.id || "");
     if (!isGraphicCatalogType(type) || !id) return NextResponse.json({ error: "Informe o cadastro para atualizar." }, { status: 400 });
-    await assertGraphicPermission(user, type === "setting" ? "settings:manage" : "catalog:manage");
+    await assertGraphicPermission(user, type === "setting" || type === "stage" ? "settings:manage" : "catalog:manage");
     const db = prisma as any;
     const model = modelFor(db, type);
     const existing = await model.findFirst({ where: { id, tenantId: user.tenantId } });
@@ -220,6 +233,18 @@ export async function PUT(request: NextRequest) {
           setupCostCents: body.setupCost === undefined ? existing.setupCostCents : cents(body.setupCost),
           status: String(body.status || existing.status),
           validationStatus: catalogValidationStatus(costCents > 0),
+          updatedById: user.id
+        }
+      });
+    } else if (type === "stage") {
+      item = await db.graphicPipelineStage.update({
+        where: { id },
+        data: {
+          name: body.name === undefined ? existing.name : String(body.name || existing.name),
+          position: body.position === undefined ? existing.position : Number(body.position || 0),
+          kind: body.kind === undefined ? existing.kind : String(body.kind || existing.kind),
+          active: body.active === undefined ? existing.active : Boolean(body.active),
+          status: String(body.status || existing.status),
           updatedById: user.id
         }
       });

@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const [opportunities, quotes, orders, productionOrders, deliveries, postSales, receivables, products, materials, processes, settings] = await Promise.all([
+    const [opportunities, quotes, orders, productionOrders, deliveries, postSales, receivables, products, materials, processes, settings, stages] = await Promise.all([
       db.graphicOpportunity.findMany({ where: { tenantId: user.tenantId }, orderBy: { updatedAt: "desc" }, take: 100, include: { activities: { orderBy: { createdAt: "desc" }, take: 3 }, tasks: { where: { status: "OPEN" }, orderBy: { dueDate: "asc" }, take: 3 } } }),
       db.graphicQuote.findMany({ where: { tenantId: user.tenantId }, orderBy: { updatedAt: "desc" }, take: 100, include: { items: true } }),
       db.graphicOrder.findMany({ where: { tenantId: user.tenantId }, orderBy: { createdAt: "desc" }, take: 50 }),
@@ -32,7 +32,8 @@ export async function GET(request: NextRequest) {
       db.graphicProduct.findMany({ where: { tenantId: user.tenantId, status: "ACTIVE" }, orderBy: { name: "asc" } }),
       db.graphicMaterial.findMany({ where: { tenantId: user.tenantId, status: "ACTIVE" }, orderBy: { name: "asc" } }),
       db.graphicProcess.findMany({ where: { tenantId: user.tenantId, status: "ACTIVE" }, orderBy: { name: "asc" } }),
-      db.graphicSetting.findMany({ where: { tenantId: user.tenantId, status: "ACTIVE" } })
+      db.graphicSetting.findMany({ where: { tenantId: user.tenantId, status: "ACTIVE" } }),
+      db.graphicPipelineStage.findMany({ where: { tenantId: user.tenantId, active: true, status: "ACTIVE" }, orderBy: { position: "asc" } })
     ]);
 
     const productionAttachments = await db.graphicAttachment.findMany({
@@ -83,6 +84,7 @@ export async function GET(request: NextRequest) {
       materials,
       processes,
       settings,
+      stages,
       users: graphicUsers
     });
   } catch (error: any) {

@@ -7,6 +7,7 @@ test("valida tipos nativos do catalogo grafico", () => {
   assert.equal(isGraphicCatalogType("material"), true);
   assert.equal(isGraphicCatalogType("process"), true);
   assert.equal(isGraphicCatalogType("setting"), true);
+  assert.equal(isGraphicCatalogType("stage"), true);
   assert.equal(isGraphicCatalogType("financeiro"), false);
 });
 

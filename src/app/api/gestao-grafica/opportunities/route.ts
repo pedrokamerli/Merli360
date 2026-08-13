@@ -19,6 +19,9 @@ export async function POST(request: NextRequest) {
     if (!clientName) return NextResponse.json({ error: "Informe o cliente." }, { status: 400 });
     if (!title) return NextResponse.json({ error: "Informe a oportunidade." }, { status: 400 });
     if (!body.nextAction && !body.nextFollowUp) return NextResponse.json({ error: "Informe o proximo passo ou a data de retorno." }, { status: 400 });
+    const allowedStages = await db.graphicPipelineStage.findMany({ where: { tenantId: user.tenantId, active: true, status: "ACTIVE" }, select: { name: true } });
+    const initialStatus = String(body.status || "OPEN");
+    if (!allowedStages.map((stage: any) => stage.name).includes(initialStatus)) return NextResponse.json({ error: "Etapa de oportunidade invalida." }, { status: 400 });
 
     const client = await db.client.upsert({
       where: { id: String(body.clientId || "new") },
@@ -55,6 +58,7 @@ export async function POST(request: NextRequest) {
         source: String(body.source || "Atendimento") || null,
         productInterest: String(body.productInterest || "") || null,
         estimatedValueCents: cents(body.estimatedValue),
+        status: initialStatus,
         nextAction: String(body.nextAction || "") || null,
         nextFollowUp: dateOrNull(body.nextFollowUp),
         qualityAlert: opportunityQualityAlert({ status: "OPEN", nextAction: body.nextAction, nextFollowUp: body.nextFollowUp }),
@@ -80,18 +84,21 @@ export async function PUT(request: NextRequest) {
   try {
     const user = await requireApiUser();
     await assertGraphicPermission(user, "opportunity:write");
+    await ensureGraphicDefaults(user.tenantId);
     const body = await request.json();
     const db = prisma as any;
     const id = String(body.id || "");
     if (!id) return NextResponse.json({ error: "Oportunidade obrigatoria." }, { status: 400 });
     const existing = await db.graphicOpportunity.findFirst({ where: { id, tenantId: user.tenantId } });
     if (!existing) return NextResponse.json({ error: "Oportunidade nao encontrada." }, { status: 404 });
+    const allowedStages = await db.graphicPipelineStage.findMany({ where: { tenantId: user.tenantId, active: true, status: "ACTIVE" }, select: { name: true } });
+    const allowedStatuses = allowedStages.map((stage: any) => stage.name);
 
     const nextStatus = String(body.status || existing.status);
     const nextAction = body.nextAction !== undefined ? String(body.nextAction || "").trim() || null : existing.nextAction;
     const nextFollowUp = body.nextFollowUp !== undefined ? dateOrNull(body.nextFollowUp) : existing.nextFollowUp;
     const lossReason = body.lossReason !== undefined ? String(body.lossReason || "").trim() : existing.lossReason;
-    const validation = validateOpportunityUpdate({ currentStatus: existing.status, nextStatus, lossReason, nextAction, nextFollowUp });
+    const validation = validateOpportunityUpdate({ currentStatus: existing.status, nextStatus, lossReason, nextAction, nextFollowUp, allowedStatuses });
     if (validation) return NextResponse.json({ error: validation }, { status: 400 });
 
     const item = await db.$transaction(async (tx: any) => {

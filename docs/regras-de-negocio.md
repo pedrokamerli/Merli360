@@ -3,6 +3,7 @@
 ## Gestao da Grafica
 
 - Toda oportunidade aberta deve possuir proximo passo ou data de retorno.
+- Mudanca de etapa da oportunidade deve usar uma etapa ativa do funil do tenant.
 - Proximo passo com data deve gerar tarefa aberta vinculada a oportunidade.
 - Oportunidade perdida exige motivo e nao deve ser reaberta no mesmo registro.
 - Interacoes comerciais relevantes da oportunidade devem criar atividade historica.

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { hasModuleAccess } from "@/lib/crm";
 import { calculateGraphicPricing } from "@/lib/graphic-pricing";
+import { defaultGraphicPipelineStages } from "@/lib/graphic-opportunities";
 
 export { calculateGraphicPricing };
 
@@ -170,6 +171,13 @@ export async function ensureGraphicDefaults(tenantId: string) {
         { tenantId, name: "Recorte", unit: "hora", costCents: 0 },
         { tenantId, name: "Instalacao", unit: "hora", costCents: 0 }
       ]
+    });
+  }
+
+  const stageCount = await (prisma as any).graphicPipelineStage.count({ where: { tenantId } });
+  if (!stageCount) {
+    await (prisma as any).graphicPipelineStage.createMany({
+      data: defaultGraphicPipelineStages().map((stage) => ({ tenantId, ...stage }))
     });
   }
 }
