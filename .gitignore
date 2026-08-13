@@ -29,6 +29,7 @@ node_modules/
 dist/
 build/
 coverage/
+tsconfig.tsbuildinfo
 *.log
 
 # Codex/runtime workspace artifacts

@@ -60,12 +60,12 @@ const consultoriaItems = [
   { href: "/questionarios", label: "Questionarios", icon: FileSpreadsheet },
   { href: "/configuracoes", label: "Configuracoes", icon: Settings },
   { href: "/relatorios", label: "Relatorios", icon: BarChart3 },
-  { href: "/grafica", label: "Grafica CRM", icon: Printer }
+  { href: "/gestao-grafica", label: "Gestao da Grafica", icon: Printer }
 ];
 
 const crmItems = [
   { href: "/crm", label: "CRM Comercial", icon: Users },
-  { href: "/grafica", label: "Grafica CRM", icon: Printer },
+  { href: "/gestao-grafica", label: "Gestao da Grafica", icon: Printer },
   { href: "/configuracoes", label: "Configuracoes CRM", icon: Settings }
 ];
 
