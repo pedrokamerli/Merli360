@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
-import { assertGraphicAccess, assertGraphicPermission, cents, ensureGraphicDefaults } from "@/lib/graphic";
+import { assertGraphicAccess, assertGraphicPermission, cents, ensureGraphicDefaults, parseGraphicRole } from "@/lib/graphic";
 import { catalogValidationStatus, isGraphicCatalogType, normalizeSettingValue, validatePercent } from "@/lib/graphic-catalog";
 
 export const dynamic = "force-dynamic";
@@ -127,6 +127,12 @@ export async function POST(request: NextRequest) {
     if (type === "setting") {
       const key = String(body.key || "").trim();
       if (!key) return NextResponse.json({ error: "Informe a chave da configuracao." }, { status: 400 });
+      if (key.startsWith("userRole:")) {
+        const targetUserId = key.replace("userRole:", "");
+        if (!parseGraphicRole(body.value)) return NextResponse.json({ error: "Papel operacional invalido." }, { status: 400 });
+        const targetUser = await db.user.findFirst({ where: { id: targetUserId, tenantId: user.tenantId }, select: { id: true } });
+        if (!targetUser) return NextResponse.json({ error: "Usuario nao encontrado neste tenant." }, { status: 404 });
+      }
       item = await db.graphicSetting.upsert({
         where: { tenantId_key: { tenantId: user.tenantId, key } },
         update: { value: normalizeSettingValue(body.value), updatedById: user.id },

@@ -3,7 +3,7 @@ import { requireApiUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { buildGraphicDashboard } from "@/lib/graphic-dashboard";
-import { assertGraphicAccess, ensureGraphicDefaults, getGraphicRole, GRAPHIC_MODULE, hasGraphicPermission } from "@/lib/graphic";
+import { assertGraphicAccess, defaultGraphicRoleForUser, ensureGraphicDefaults, getGraphicRole, GRAPHIC_MODULE, graphicRoleSettingKey, hasGraphicPermission, parseGraphicRole } from "@/lib/graphic";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +13,7 @@ export async function GET(request: NextRequest) {
     assertGraphicAccess(user);
     const graphicRole = await getGraphicRole(user);
     const canViewFinancial = hasGraphicPermission(graphicRole, "cost:view") || graphicRole === "FINANCE";
+    const canManageSettings = hasGraphicPermission(graphicRole, "settings:manage");
     await ensureGraphicDefaults(user.tenantId);
     const db = prisma as any;
     const today = new Date();
@@ -43,6 +44,13 @@ export async function GET(request: NextRequest) {
       return acc;
     }, {});
     const productionRows = productionOrders.map((item: any) => ({ ...item, attachments: attachmentsByProduction[item.id] || [] }));
+    const tenantUsers = canManageSettings
+      ? await db.user.findMany({ where: { tenantId: user.tenantId }, orderBy: { name: "asc" }, select: { id: true, name: true, username: true, role: true, moduleAccess: true } })
+      : [];
+    const graphicUsers = tenantUsers.map((item: any) => ({
+      ...item,
+      graphicRole: parseGraphicRole(settings.find((setting: any) => setting.key === graphicRoleSettingKey(item.id))?.value) || defaultGraphicRoleForUser(item)
+    }));
 
     const dashboard = buildGraphicDashboard({
       opportunities,
@@ -61,6 +69,7 @@ export async function GET(request: NextRequest) {
       module: GRAPHIC_MODULE,
       role: graphicRole,
       canViewFinancial,
+      canManageSettings,
       metrics: dashboard.metrics,
       metricNotes: dashboard.metricNotes,
       opportunities,
@@ -73,7 +82,8 @@ export async function GET(request: NextRequest) {
       products,
       materials,
       processes,
-      settings
+      settings,
+      users: graphicUsers
     });
   } catch (error: any) {
     await audit({ action: "graphic_summary_failed", status: "error", request, metadata: { message: String(error?.message || error) } });

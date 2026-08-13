@@ -68,6 +68,10 @@ export function parseGraphicRole(value: unknown): GraphicRole | null {
   return graphicRoles.includes(role as GraphicRole) ? role as GraphicRole : null;
 }
 
+export function graphicRoleSettingKey(userId: string) {
+  return `userRole:${userId}`;
+}
+
 export function defaultGraphicRoleForUser(user: Pick<GraphicUser, "role">): GraphicRole {
   if (user.role === "superadmin" || user.role === "admin") return "OWNER_ADMIN";
   return "SALES";
@@ -83,7 +87,7 @@ export function hasGraphicPermission(role: GraphicRole, permission: GraphicPermi
 
 export async function getGraphicRole(user: GraphicUser): Promise<GraphicRole> {
   const row = await prisma.graphicSetting.findFirst({
-    where: { tenantId: user.tenantId, key: `userRole:${user.id}`, status: "ACTIVE" },
+    where: { tenantId: user.tenantId, key: graphicRoleSettingKey(user.id), status: "ACTIVE" },
     select: { value: true }
   });
   return parseGraphicRole(row?.value) || defaultGraphicRoleForUser(user);

@@ -11,6 +11,8 @@
 
 Os papeis detalhados do modulo sao armazenados em `GraphicSetting` por tenant na chave `userRole:<userId>`. Quando nao houver papel configurado, `superadmin` e `admin` entram como `OWNER_ADMIN`; demais usuarios entram como `SALES`.
 
+Usuarios com `settings:manage` podem ajustar esses papeis na propria tela da Gestao da Grafica. A listagem de usuarios e filtrada pelo tenant autenticado e nao expõe dados sensiveis.
+
 Neste ciclo, a autorizacao de acesso ao modulo ainda aceita `crm` como compatibilidade para usuarios ja integrados, mas as acoes criticas abaixo ja possuem validacao de backend por perfil operacional.
 
 - OWNER_ADMIN: acesso total, custos, margens, configuracoes, descontos e auditoria.

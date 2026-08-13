@@ -9,6 +9,14 @@ type AnyRow = Record<string, any>;
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const brl = (cents: number) => money.format((cents || 0) / 100);
 const day = (value?: string) => value ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value)) : "Sem data";
+const graphicRoleOptions = [
+  ["OWNER_ADMIN", "Dono/Admin"],
+  ["SALES_MANAGER", "Gerente vendas"],
+  ["SALES", "Vendas"],
+  ["PRODUCTION", "Producao"],
+  ["FINANCE", "Financeiro"],
+  ["ADVISOR", "Consultor"]
+];
 
 const opportunityInitial = {
   clientName: "",
@@ -110,6 +118,7 @@ export function GestaoGraficaWorkspace() {
   const materials = data?.materials || [];
   const processes = data?.processes || [];
   const settings = data?.settings || [];
+  const users = data?.users || [];
   const settingMap = Object.fromEntries(settings.map((item: AnyRow) => [item.key, item.value]));
 
   async function saveCatalog(type: string, payload: AnyRow) {
@@ -532,6 +541,25 @@ export function GestaoGraficaWorkspace() {
               ))}
             </div>
           </div>
+          {data?.canManageSettings ? (
+            <div className="rounded-lg border border-slate-200 bg-white p-3">
+              <h3 className="font-black text-slate-950">Papeis da equipe</h3>
+              <div className="mt-3 grid gap-2">
+                {users.length ? users.map((item: AnyRow) => (
+                  <label key={item.id} className="grid gap-1 text-xs font-black text-slate-500">
+                    <span className="truncate text-slate-700">{item.name || item.username}</span>
+                    <select
+                      className={inputClass}
+                      defaultValue={item.graphicRole || "SALES"}
+                      onChange={(event) => saveCatalog("setting", { key: `userRole:${item.id}`, value: event.target.value })}
+                    >
+                      {graphicRoleOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                    </select>
+                  </label>
+                )) : <p className="rounded-lg bg-slate-50 p-3 text-xs font-bold text-slate-500">Nenhum usuario do tenant encontrado.</p>}
+              </div>
+            </div>
+          ) : null}
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-3">
           <CatalogList title="Produtos" rows={products} value={(item) => item.category || item.unit} />

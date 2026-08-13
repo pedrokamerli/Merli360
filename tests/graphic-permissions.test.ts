@@ -1,12 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { defaultGraphicRoleForUser, hasGraphicPermission, parseGraphicRole } from "../src/lib/graphic";
+import { defaultGraphicRoleForUser, graphicRoleSettingKey, hasGraphicPermission, parseGraphicRole } from "../src/lib/graphic";
 
 test("normaliza papeis operacionais validos da grafica", () => {
   assert.equal(parseGraphicRole("owner_admin"), "OWNER_ADMIN");
   assert.equal(parseGraphicRole("PRODUCTION"), "PRODUCTION");
   assert.equal(parseGraphicRole("finance"), "FINANCE");
   assert.equal(parseGraphicRole("vendas"), null);
+  assert.equal(graphicRoleSettingKey("user-1"), "userRole:user-1");
 });
 
 test("define fallback seguro pelo papel global do usuario", () => {

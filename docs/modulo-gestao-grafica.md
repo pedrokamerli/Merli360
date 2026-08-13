@@ -41,6 +41,7 @@ A chave do modulo e `gestao-grafica`. O super admin tambem tem acesso. Neste cic
 24. Excecoes de margem/desconto possuem aprovacao comercial antes da conversao em pedido.
 25. Pos-venda pode gerar nova oportunidade e tarefa de retorno a partir de reclamacao, baixa satisfacao ou chance de recorrencia.
 26. Dashboard exibe ticket medio aprovado, margem media estimada, descontos, aprovacoes abertas, producao atrasada/bloqueada e entregas no prazo.
+27. Administradores do modulo podem configurar papeis operacionais da equipe por usuario do tenant.
 
 ## Dados insuficientes
 
