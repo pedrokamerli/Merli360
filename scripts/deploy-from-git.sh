@@ -3,6 +3,7 @@ set -eu
 
 APP_DIR="/opt/novo-saas"
 COMPOSE_FILE="docker-compose.postgres.yml"
+PROJECT_NAME="novo_saas"
 SERVICE="merli360_app"
 LOG_FILE="$APP_DIR/deploy.log"
 
@@ -36,9 +37,9 @@ fi
 log "deploy start: $LOCAL_SHA -> $REMOTE_SHA"
 git merge --ff-only origin/main >> "$LOG_FILE" 2>&1
 
-docker compose --env-file .env.production -f "$COMPOSE_FILE" build "$SERVICE" >> "$LOG_FILE" 2>&1
+docker compose -p "$PROJECT_NAME" --env-file .env.production -f "$COMPOSE_FILE" build "$SERVICE" >> "$LOG_FILE" 2>&1
 docker rm -f "$SERVICE" >> "$LOG_FILE" 2>&1 || true
-docker compose --env-file .env.production -f "$COMPOSE_FILE" up -d --no-deps "$SERVICE" >> "$LOG_FILE" 2>&1
+docker compose -p "$PROJECT_NAME" --env-file .env.production -f "$COMPOSE_FILE" up -d --no-deps "$SERVICE" >> "$LOG_FILE" 2>&1
 
 NEW_SHA="$(git rev-parse HEAD)"
 log "deploy complete: $NEW_SHA"
