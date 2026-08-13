@@ -43,6 +43,8 @@
 - Indicadores do dashboard devem exibir formula, periodo, fonte, criterio e limitacao.
 - Quando nao houver base suficiente, o indicador deve mostrar `Dados insuficientes para calcular este indicador.`
 - Indicadores financeiros nao devem expor valores para perfis sem permissao de custo ou financeiro.
+- Ticket medio, margem media e descontos sao indicadores financeiros/custo e devem aparecer como `Restrito` para perfis sem permissao.
+- Atraso de producao deve considerar apenas ordens abertas com prazo prometido vencido; entrega no prazo deve considerar apenas entregas realizadas.
 - Exportacoes CSV da grafica devem filtrar tenant no servidor e validar permissao do perfil operacional.
 - CSV exportado deve neutralizar celulas que comecem por `=`, `+`, `-` ou `@`.
 - Toda exportacao de relatorio da grafica deve registrar auditoria central com modelo e quantidade de linhas.

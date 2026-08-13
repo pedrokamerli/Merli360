@@ -430,8 +430,9 @@ export function GestaoGraficaWorkspace() {
         <MetricCard label="Retornos hoje" value={String(metrics.returnsToday || 0)} hint={`${metrics.overdueReturns || 0} atrasados`} tone={metrics.overdueReturns ? "warn" : "default"} />
         <MetricCard label="Alertas de qualidade" value={String(metrics.qualityAlerts || 0)} hint="sem proximo passo completo" tone={metrics.qualityAlerts ? "danger" : "good"} />
         <MetricCard label="Orcamentos aprovados" value={String(metrics.quotesApproved || 0)} hint={`${metrics.quotesSent || 0} enviados/visualizados`} tone="good" />
-        <MetricCard label="Producao aberta" value={String(metrics.productionOpen || 0)} hint="ordens pendentes" />
-        <MetricCard label="Entregas abertas" value={String(metrics.deliveriesOpen || 0)} hint={`${metrics.postSalesOpen || 0} pos-vendas`} />
+        <MetricCard label="Ticket medio" value={metrics.averageTicketCents === null ? "Restrito" : brl(metrics.averageTicketCents || 0)} hint={`${metrics.approvalRequiredOpen || 0} aprovacoes abertas`} />
+        <MetricCard label="Producao aberta" value={String(metrics.productionOpen || 0)} hint={`${metrics.productionDelayed || 0} atrasadas, ${metrics.productionBlocked || 0} bloqueadas`} tone={metrics.productionDelayed || metrics.productionBlocked ? "danger" : "default"} />
+        <MetricCard label="Entregas abertas" value={String(metrics.deliveriesOpen || 0)} hint={metrics.deliveryOnTimePercent === null ? `${metrics.postSalesOpen || 0} pos-vendas` : `${metrics.deliveryOnTimePercent}% no prazo`} />
         <MetricCard label="Recebimento pendente" value={metrics.openReceivablesCents === null ? "Restrito" : brl(metrics.openReceivablesCents || 0)} hint={metrics.dataQuality || "valor aberto"} tone={metrics.overdueReceivablesCents ? "danger" : "warn"} />
       </section>
 
@@ -698,9 +699,12 @@ export function GestaoGraficaWorkspace() {
           <h2 className="text-lg font-black text-slate-950">Venda, faturamento e recebimento</h2>
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
-          <MetricCard label="Valor vendido" value={brl(metrics.soldCents || 0)} />
-          <MetricCard label="Valor faturado" value={brl(metrics.billedCents || 0)} />
-          <MetricCard label="Valor recebido" value={brl(metrics.receivedCents || 0)} tone="good" />
+          <MetricCard label="Valor vendido" value={metrics.soldCents === null ? "Restrito" : brl(metrics.soldCents || 0)} />
+          <MetricCard label="Valor faturado" value={metrics.billedCents === null ? "Restrito" : brl(metrics.billedCents || 0)} />
+          <MetricCard label="Valor recebido" value={metrics.receivedCents === null ? "Restrito" : brl(metrics.receivedCents || 0)} tone="good" />
+          <MetricCard label="Margem media" value={metrics.averageMarginPercent === null ? "Restrito" : `${metrics.averageMarginPercent || 0}%`} />
+          <MetricCard label="Descontos" value={metrics.discountsCents === null ? "Restrito" : brl(metrics.discountsCents || 0)} tone={metrics.discountsCents ? "warn" : "default"} />
+          <MetricCard label="Vencidos" value={metrics.overdueReceivablesCents === null ? "Restrito" : brl(metrics.overdueReceivablesCents || 0)} tone={metrics.overdueReceivablesCents ? "danger" : "good"} />
         </div>
       </section>
 

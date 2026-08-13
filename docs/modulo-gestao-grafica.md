@@ -40,12 +40,15 @@ A chave do modulo e `gestao-grafica`. O super admin tambem tem acesso. Neste cic
 23. Oportunidades registram contato, reagendamento de retorno, tarefa aberta e perda com motivo obrigatorio.
 24. Excecoes de margem/desconto possuem aprovacao comercial antes da conversao em pedido.
 25. Pos-venda pode gerar nova oportunidade e tarefa de retorno a partir de reclamacao, baixa satisfacao ou chance de recorrencia.
+26. Dashboard exibe ticket medio aprovado, margem media estimada, descontos, aprovacoes abertas, producao atrasada/bloqueada e entregas no prazo.
 
 ## Dados insuficientes
 
 Indicadores financeiros, margem e custos exibem aviso quando a base nao possui dados suficientes ou quando custos foram importados/preenchidos como `PENDING_VALIDATION`.
 
 Indicadores financeiros ficam ocultos para perfis sem autorizacao financeira/custo. Nesses casos, o painel mostra `Restrito` em vez de expor valor vendido, faturado, recebido ou pendente.
+
+Ticket medio, margem media e descontos tambem respeitam permissao financeira/custo. Producoes sem prazo prometido e entregas sem data realizada nao entram nos indicadores de atraso ou pontualidade.
 
 Cada recebimento grafico vinculado a um titulo financeiro cria baixa idempotente no financeiro central, com movimento de caixa associado. Pagamentos acima do saldo aberto aplicam somente o valor pendente.
 

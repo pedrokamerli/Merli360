@@ -16,13 +16,14 @@
 12. Use `Gerar pedido` quando o cliente confirmar.
 13. O sistema cria pedido e ordem de producao automaticamente.
 14. Acompanhe producao, entrega e recebimento pelo painel.
-15. Na producao, marque checklist, inicie/conclua etapas, registre consumo e retrabalho quando houver.
-16. Anexe artes, provas, PDFs ou fotos diretamente na ordem de producao quando precisar registrar evidencia.
-17. Use os botoes de relatorio para baixar CSV de oportunidades, orcamentos, pedidos, producao, recebimentos ou auditoria.
-18. Marque a entrega como entregue ou aceita.
-19. Registre recebimentos parciais ou totais informando conta e forma de pagamento; a baixa tambem entra no financeiro central quando houver titulo vinculado.
-20. Feche o pos-venda com satisfacao de 1 a 5.
-21. Se houver reclamacao, baixa satisfacao ou chance de nova venda, crie uma nova oportunidade/tarefa pelo proprio contato de pos-venda.
+15. Use os indicadores de ticket medio, margem, descontos, atrasos e entregas no prazo para priorizar a rotina.
+16. Na producao, marque checklist, inicie/conclua etapas, registre consumo e retrabalho quando houver.
+17. Anexe artes, provas, PDFs ou fotos diretamente na ordem de producao quando precisar registrar evidencia.
+18. Use os botoes de relatorio para baixar CSV de oportunidades, orcamentos, pedidos, producao, recebimentos ou auditoria.
+19. Marque a entrega como entregue ou aceita.
+20. Registre recebimentos parciais ou totais informando conta e forma de pagamento; a baixa tambem entra no financeiro central quando houver titulo vinculado.
+21. Feche o pos-venda com satisfacao de 1 a 5.
+22. Se houver reclamacao, baixa satisfacao ou chance de nova venda, crie uma nova oportunidade/tarefa pelo proprio contato de pos-venda.
 
 Quando um indicador aparecer como `Dados insuficientes`, significa que ainda nao ha registros confiaveis para o calculo.
 Abra os detalhes do indicador para conferir formula, fonte, periodo e criterio usado no painel.

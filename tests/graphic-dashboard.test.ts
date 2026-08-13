@@ -14,10 +14,21 @@ test("calcula indicadores comerciais e de qualidade da grafica", () => {
       { status: "OPEN", nextAction: "Ligar", nextFollowUp: "2026-08-13T10:00:00-03:00" },
       { status: "OPEN", nextAction: "", nextFollowUp: null }
     ],
-    quotes: [{ status: "SENT" }, { status: "APPROVED" }],
+    quotes: [
+      { status: "SENT", discountCents: 1000, marginPercent: 35, approvalRequired: true },
+      { status: "APPROVED", totalPriceCents: 90000, discountCents: 3000, marginPercent: 25 },
+      { status: "APPROVED", totalPriceCents: 150000, discountCents: 0, marginPercent: 45 }
+    ],
     orders: [{ soldValueCents: 120000, billedValueCents: 120000, receivedValueCents: 40000 }],
-    productionOrders: [{ status: "IN_PROGRESS", reworks: [{ status: "OPEN" }], consumptions: [{ wasteQuantity: 2 }] }],
-    deliveries: [{ status: "PENDING" }],
+    productionOrders: [
+      { status: "IN_PROGRESS", promisedAt: "2026-08-12T10:00:00-03:00", reworks: [{ status: "OPEN" }], consumptions: [{ wasteQuantity: 2 }] },
+      { status: "BLOCKED", promisedAt: "2026-08-14T10:00:00-03:00", reworks: [], consumptions: [] }
+    ],
+    deliveries: [
+      { status: "PENDING" },
+      { status: "DELIVERED", expectedAt: "2026-08-13T18:00:00-03:00", deliveredAt: "2026-08-13T17:00:00-03:00" },
+      { status: "DELIVERED", expectedAt: "2026-08-12T18:00:00-03:00", deliveredAt: "2026-08-13T09:00:00-03:00" }
+    ],
     postSales: [{ status: "OPEN" }],
     receivables: [{ status: "OPEN", dueDate: "2026-08-12", amountCents: 120000, receivedCents: 40000 }]
   });
@@ -25,9 +36,17 @@ test("calcula indicadores comerciais e de qualidade da grafica", () => {
   assert.equal(result.metrics.opportunitiesOpen, 2);
   assert.equal(result.metrics.returnsToday, 1);
   assert.equal(result.metrics.qualityAlerts, 1);
-  assert.equal(result.metrics.quotesApproved, 1);
+  assert.equal(result.metrics.quotesApproved, 2);
+  assert.equal(result.metrics.averageTicketCents, 120000);
+  assert.equal(result.metrics.averageMarginPercent, 35);
+  assert.equal(result.metrics.discountsCents, 4000);
+  assert.equal(result.metrics.approvalRequiredOpen, 1);
+  assert.equal(result.metrics.productionDelayed, 1);
+  assert.equal(result.metrics.productionBlocked, 1);
+  assert.equal(result.metrics.deliveryOnTimePercent, 50);
   assert.equal(result.metrics.openReceivablesCents, 80000);
   assert.equal(result.metricNotes.find((item) => item.key === "openReceivablesCents")?.quality, "OK");
+  assert.equal(result.metricNotes.find((item) => item.key === "deliveryOnTimePercent")?.quality, "OK");
 });
 
 test("oculta indicadores financeiros quando o perfil nao tem permissao", () => {
@@ -45,6 +64,8 @@ test("oculta indicadores financeiros quando o perfil nao tem permissao", () => {
   });
 
   assert.equal(result.metrics.soldCents, null);
+  assert.equal(result.metrics.averageTicketCents, null);
+  assert.equal(result.metrics.discountsCents, null);
   assert.equal(result.metrics.openReceivablesCents, null);
   assert.equal(result.metricNotes.find((item) => item.key === "openReceivablesCents")?.quality, "RESTRICTED");
 });
