@@ -45,6 +45,7 @@ A chave do modulo e `gestao-grafica`. O super admin tambem tem acesso. Neste cic
 28. Funil visual usa etapas configuraveis por tenant em `GraphicPipelineStage`, com validacao no backend ao mover oportunidades.
 29. Dashboard comercial mostra clientes novos, recorrentes, inativos e rankings por origem, produto, responsavel e segmento.
 30. Dashboard de producao mede horas previstas, horas realizadas, variacao, ciclo medio e tempo entre aprovacao e producao.
+31. Aprovacao de orcamento gera parcelas e titulos financeiros conforme percentuais da condicao de pagamento; quando nao reconhece a regra, gera parcela unica.
 
 ## Dados insuficientes
 
@@ -57,6 +58,8 @@ Ticket medio, margem media e descontos tambem respeitam permissao financeira/cus
 Rankings de resultado por cliente e produto ocultam valores para perfis sem permissao financeira/custo. Rankings comerciais sem valor financeiro exibem apenas contagem operacional.
 
 Cada recebimento grafico vinculado a um titulo financeiro cria baixa idempotente no financeiro central, com movimento de caixa associado. Pagamentos acima do saldo aberto aplicam somente o valor pendente.
+
+Condicoes de pagamento com percentuais que somam 100, como `50% na aprovacao e 50% na entrega`, geram mais de uma parcela em `GraphicReceivable` e `FinancialTitle`. Condicoes livres continuam como parcela unica em 7 dias.
 
 Custos zerados ou ainda nao conferidos entram como `PENDING_VALIDATION`. A validacao real dos valores deve ser feita pelo responsavel operacional antes de usar esses dados como base final de preco.
 

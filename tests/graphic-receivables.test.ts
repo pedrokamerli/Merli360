@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { addPaymentToReceivable, defaultGraphicPaymentAccount, defaultGraphicPaymentMethod, graphicPaymentIdempotencyKey, resolveReceivableStatus } from "../src/lib/graphic-receivables";
+import { addPaymentToReceivable, buildGraphicInstallments, defaultGraphicPaymentAccount, defaultGraphicPaymentMethod, graphicPaymentIdempotencyKey, resolveReceivableStatus } from "../src/lib/graphic-receivables";
 
 test("registra recebimento parcial sem ultrapassar valor total", () => {
   const first = addPaymentToReceivable(100000, 0, 40000);
@@ -24,4 +24,19 @@ test("normaliza dados de baixa financeira grafica", () => {
   assert.equal(defaultGraphicPaymentAccount(""), "Conta principal");
   assert.equal(defaultGraphicPaymentMethod("Pix"), "Pix");
   assert.equal(defaultGraphicPaymentMethod(""), "Manual");
+});
+
+test("gera parcelas conforme condicao de pagamento grafica", () => {
+  const base = new Date("2026-08-13T12:00:00.000Z");
+  const two = buildGraphicInstallments(100001, "50% na aprovacao e 50% na entrega", base);
+  assert.equal(two.length, 2);
+  assert.equal(two[0].amountCents, 50001);
+  assert.equal(two[1].amountCents, 50000);
+  assert.equal(two.reduce((sum, item) => sum + item.amountCents, 0), 100001);
+  assert.equal(two[0].dueDate.toISOString().slice(0, 10), "2026-08-13");
+  assert.equal(two[1].dueDate.toISOString().slice(0, 10), "2026-08-20");
+
+  const single = buildGraphicInstallments(90000, "a combinar", base);
+  assert.deepEqual(single.map((item) => item.amountCents), [90000]);
+  assert.equal(single[0].dueDate.toISOString().slice(0, 10), "2026-08-20");
 });

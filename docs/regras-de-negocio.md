@@ -13,7 +13,7 @@
 - Orcamento com excecao comercial pendente nao pode gerar pedido.
 - Aprovacao comercial decide `GraphicApprovalRequest` pendente e registra versao historica do orcamento.
 - Orcamento aprovado gera pedido e ordem de producao sem redigitacao.
-- Orcamento aprovado gera entrega pendente e recebimento financeiro vinculado.
+- Orcamento aprovado gera entrega pendente e uma ou mais parcelas financeiras vinculadas conforme condicao de pagamento.
 - Pedido preserva snapshot comercial e de custo do orcamento aprovado.
 - Alteracoes posteriores em produto, material ou processo nao alteram pedidos antigos.
 - Produtos, materiais, processos e parametros sao sempre isolados por tenant.
@@ -23,6 +23,7 @@
 - Percentuais operacionais, como perda prevista, devem ficar entre 0 e 100.
 - Recebimento parcial deve manter valor pendente e status corretos.
 - Recebimento grafico vinculado a titulo financeiro deve criar pagamento, baixa financeira central e movimento de caixa.
+- Parcelas percentuais do orcamento devem somar exatamente o valor vendido, ajustando centavos na ultima parcela.
 - Pagamento maior que o saldo pendente deve aplicar somente o saldo aberto.
 - Entrega concluida deve abrir pos-venda automaticamente.
 - Pos-venda deve validar satisfacao entre 1 e 5.

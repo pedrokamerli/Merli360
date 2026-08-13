@@ -4,6 +4,7 @@ import { requireApiUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { assertGraphicPermission, calculateGraphicPricing, cents, dateOrNull, ensureGraphicDefaults, getGraphicSettings, graphicProductionSteps } from "@/lib/graphic";
+import { buildGraphicInstallments } from "@/lib/graphic-receivables";
 import { nextQuoteVersion, validateCommercialApproval, validateQuoteStatusAction } from "@/lib/graphic-quotes";
 
 export const dynamic = "force-dynamic";
@@ -299,25 +300,27 @@ export async function PUT(request: NextRequest) {
       await tx.graphicProductionStep.createMany({
         data: graphicProductionSteps.map((name, position) => ({ tenantId: user.tenantId, productionOrderId: production.id, name, position, createdById: user.id, updatedById: user.id }))
       });
-      const dueDate = new Date();
-      dueDate.setDate(dueDate.getDate() + 7);
+      const approvalDate = new Date();
+      const installments = buildGraphicInstallments(quote.totalPriceCents, quote.paymentTerms, approvalDate);
       const expectedDelivery = new Date();
       expectedDelivery.setDate(expectedDelivery.getDate() + 7);
-      const title = await tx.financialTitle.create({
-        data: {
-          tenantId: user.tenantId,
-          type: "RECEIVABLE",
-          origin: "GESTAO_GRAFICA",
-          contactLegacyId: quote.clientId,
-          description: `Pedido grafica ${order.number}`,
-          category: "Receita grafica",
-          dueDate,
-          originalAmountCents: quote.totalPriceCents,
-          status: "OPEN",
-          notes: "Titulo gerado automaticamente pela aprovacao do orcamento."
-        }
-      });
-      await tx.graphicReceivable.create({ data: { tenantId: user.tenantId, orderId: order.id, financialTitleId: title.id, dueDate, amountCents: quote.totalPriceCents, createdById: user.id, updatedById: user.id } });
+      for (const installment of installments) {
+        const title = await tx.financialTitle.create({
+          data: {
+            tenantId: user.tenantId,
+            type: "RECEIVABLE",
+            origin: "GESTAO_GRAFICA",
+            contactLegacyId: quote.clientId,
+            description: installments.length === 1 ? `Pedido grafica ${order.number}` : `Pedido grafica ${order.number} - parcela ${installment.number}/${installments.length}`,
+            category: "Receita grafica",
+            dueDate: installment.dueDate,
+            originalAmountCents: installment.amountCents,
+            status: "OPEN",
+            notes: `${installment.label}. Condicao: ${quote.paymentTerms || "A combinar"}.`
+          }
+        });
+        await tx.graphicReceivable.create({ data: { tenantId: user.tenantId, orderId: order.id, financialTitleId: title.id, dueDate: installment.dueDate, amountCents: installment.amountCents, notes: installment.label, createdById: user.id, updatedById: user.id } });
+      }
       await tx.graphicDelivery.create({ data: { tenantId: user.tenantId, orderId: order.id, method: "RETIRADA", expectedAt: expectedDelivery, status: "PENDING", createdById: user.id, updatedById: user.id } });
       return { quote: approvedQuote, order, production };
     });

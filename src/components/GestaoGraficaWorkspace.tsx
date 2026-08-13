@@ -834,7 +834,7 @@ export function GestaoGraficaWorkspace() {
             {receivableRows.length ? receivableRows.map((item: AnyRow) => (
               <article key={item.id} className="rounded-lg border border-slate-200 bg-white p-3">
                 <h3 className="font-black text-slate-950">{brl(item.amountCents - item.receivedCents)} pendente</h3>
-                <p className="text-xs font-semibold text-slate-500">Status {item.status} | vence {day(item.dueDate)}</p>
+                <p className="text-xs font-semibold text-slate-500">Status {item.status} | vence {day(item.dueDate)} | {item.notes || "Parcela"}</p>
                 <p className="mt-1 text-xs font-semibold text-slate-500">Recebido {brl(item.receivedCents)} de {brl(item.amountCents)}</p>
                 {item.status !== "PAID" ? (
                   <button className="primary-action mt-3 inline-flex w-full items-center justify-center py-2 text-xs" type="button" onClick={() => registerPayment(item.id)}>Registrar recebimento</button>
