@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Banknote, CheckCircle2, ClipboardList, Factory, FileText, Loader2, PackageCheck, Plus, RefreshCw, Search, Settings, Star, Upload } from "lucide-react";
+import { AlertTriangle, Banknote, CheckCircle2, ClipboardList, Download, Factory, FileText, Loader2, PackageCheck, Plus, RefreshCw, Search, Settings, Star, Upload } from "lucide-react";
 import { MetricCard } from "@/components/MetricCard";
 
 type AnyRow = Record<string, any>;
@@ -57,6 +57,14 @@ function todayPlus(days: number) {
 }
 
 const inputClass = "min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100";
+const graphicReports = [
+  ["opportunities", "Oportunidades"],
+  ["quotes", "Orcamentos"],
+  ["orders", "Pedidos"],
+  ["production", "Producao"],
+  ["receivables", "Recebimentos"],
+  ["audit", "Auditoria"]
+];
 
 export function GestaoGraficaWorkspace() {
   const [data, setData] = useState<AnyRow | null>(null);
@@ -355,6 +363,22 @@ export function GestaoGraficaWorkspace() {
 
       {message ? <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{message}</div> : null}
       {loading ? <div className="surface-panel flex items-center gap-2 p-5 text-sm font-bold text-slate-600"><Loader2 className="animate-spin" size={18} /> Carregando modulo...</div> : null}
+
+      <section className="surface-panel p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 className="text-lg font-black text-slate-950">Relatorios da grafica</h2>
+            <p className="text-xs font-semibold text-slate-500">Exportacoes em CSV com tenant, perfil e auditoria aplicados no servidor.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {graphicReports.map(([model, label]) => (
+              <a key={model} className="secondary-action inline-flex items-center gap-2 px-3 py-2 text-xs" href={`/api/gestao-grafica/reports/${model}`}>
+                <Download size={14} /> {label}
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
 
       <section className="grid grid-cols-2 gap-3 xl:grid-cols-6">
         <MetricCard label="Oportunidades abertas" value={String(metrics.opportunitiesOpen || 0)} hint="funil grafico" />

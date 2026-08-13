@@ -30,4 +30,10 @@ Neste ciclo, a autorizacao de acesso ao modulo ainda aceita `crm` como compatibi
 - `production:update`: atualizar producao e entregas.
 - `receivable:update`: registrar recebimentos.
 - `post-sale:update`: registrar pos-venda.
-- `report:view`: consultar indicadores autorizados.
+- `report:view`: consultar indicadores autorizados e exportar relatorios comerciais/operacionais.
+
+## Exportacoes da grafica
+
+- Oportunidades, orcamentos, pedidos e producao: `report:view`.
+- Recebimentos: `receivable:update`.
+- Auditoria: perfil com `cost:view`, atualmente `OWNER_ADMIN`.

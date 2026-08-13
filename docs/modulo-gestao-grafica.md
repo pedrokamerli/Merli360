@@ -36,6 +36,7 @@ A chave do modulo e `gestao-grafica`. O super admin tambem tem acesso. Neste cic
 19. Upload privado de arquivos da grafica vinculado a oportunidade, orcamento, pedido, producao, entrega ou pos-venda.
 20. Orcamentos podem ser enviados, recusados, cancelados com motivo e duplicados com novo numero.
 21. Indicadores do painel informam formula, periodo, fonte, criterio, limitacao e qualidade do dado.
+22. Relatorios CSV exportam oportunidades, orcamentos, pedidos, producao, recebimentos e auditoria com permissao de backend.
 
 ## Dados insuficientes
 
@@ -48,3 +49,13 @@ Custos zerados ou ainda nao conferidos entram como `PENDING_VALIDATION`. A valid
 Na producao, a liberacao exige checklist completo de arte, medidas, material, prazo e arquivos. Retrabalho exige motivo, impacto e acao corretiva.
 
 Orcamentos aprovados nao podem voltar de status. Recusa e cancelamento exigem motivo e geram versao historica.
+
+## Relatorios e exportacao
+
+Os atalhos do painel usam `/api/gestao-grafica/reports/:model`.
+
+- `opportunities`, `quotes`, `orders` e `production`: exigem `report:view`.
+- `receivables`: exige permissao financeira de recebimento.
+- `audit`: exige perfil com visao de custo/auditoria.
+
+Todo CSV e filtrado por tenant, usa dados persistidos e protege celulas iniciadas por `=`, `+`, `-` ou `@` para reduzir risco de formula injection em planilhas.
