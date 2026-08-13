@@ -351,11 +351,13 @@ export function GestaoGraficaWorkspace() {
   async function registerPayment(id: string) {
     const amount = prompt("Valor recebido");
     if (!amount) return;
+    const accountName = prompt("Conta de recebimento", "Conta principal") || "Conta principal";
+    const method = prompt("Forma de pagamento", "Pix") || "Manual";
     setSaving(true);
     const response = await fetch("/api/gestao-grafica/receivables", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, amount, method: "Manual", paidAt: new Date().toISOString().slice(0, 10) })
+      body: JSON.stringify({ id, amount, accountName, method, paidAt: new Date().toISOString().slice(0, 10) })
     });
     const payload = await response.json();
     setSaving(false);

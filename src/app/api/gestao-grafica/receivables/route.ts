@@ -3,7 +3,8 @@ import { requireApiUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { assertGraphicPermission, cents, dateOrNull } from "@/lib/graphic";
-import { addPaymentToReceivable, resolveReceivableStatus } from "@/lib/graphic-receivables";
+import { settleFinancialTitle } from "@/lib/financial-ledger";
+import { addPaymentToReceivable, defaultGraphicPaymentAccount, defaultGraphicPaymentMethod, graphicPaymentIdempotencyKey, resolveReceivableStatus } from "@/lib/graphic-receivables";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,8 @@ export async function POST(request: NextRequest) {
     const paidAt = dateOrNull(body.paidAt) || new Date();
     const calc = addPaymentToReceivable(existing.amountCents, existing.receivedCents, paymentCents);
     const status = resolveReceivableStatus(existing.amountCents, calc.nextReceivedCents, new Date(), existing.dueDate);
+    const accountName = defaultGraphicPaymentAccount(body.accountName || body.account);
+    const method = defaultGraphicPaymentMethod(body.method);
     const result = await db.$transaction(async (tx: any) => {
       const payment = await tx.graphicPayment.create({
         data: {
@@ -31,7 +34,7 @@ export async function POST(request: NextRequest) {
           receivableId: existing.id,
           paidAt,
           amountCents: calc.paidNowCents,
-          method: String(body.method || "") || null,
+          method,
           notes: String(body.notes || "") || null,
           createdById: user.id,
           updatedById: user.id
@@ -40,13 +43,23 @@ export async function POST(request: NextRequest) {
       const receivable = await tx.graphicReceivable.update({ where: { id: existing.id }, data: { receivedCents: calc.nextReceivedCents, status, updatedById: user.id } });
       const orderReceived = Math.min(existing.order.soldValueCents, existing.order.receivedValueCents + calc.paidNowCents);
       const order = await tx.graphicOrder.update({ where: { id: existing.orderId }, data: { receivedValueCents: orderReceived, updatedById: user.id } });
-      if (existing.financialTitleId && status === "PAID") {
-        await tx.financialTitle.update({ where: { id: existing.financialTitleId }, data: { status: "PAID", updatedAt: new Date() } }).catch(() => null);
-      }
       return { payment, receivable, order, pendingCents: calc.pendingCents };
     });
-    await audit({ tenantId: user.tenantId, userId: user.id, action: "graphic_register_payment", entity: "GraphicReceivable", entityId: id, request, metadata: { amountCents: calc.paidNowCents, status } });
-    return NextResponse.json(result);
+    let settlement = null;
+    if (existing.financialTitleId) {
+      settlement = await settleFinancialTitle({
+        tenantId: user.tenantId,
+        titleId: existing.financialTitleId,
+        effectiveDate: paidAt,
+        accountName,
+        paymentMethod: method,
+        principalAmount: calc.paidNowCents / 100,
+        notes: String(body.notes || `Recebimento grafica ${existing.order?.number || ""}`).trim(),
+        idempotencyKey: graphicPaymentIdempotencyKey(result.payment.id)
+      });
+    }
+    await audit({ tenantId: user.tenantId, userId: user.id, action: "graphic_register_payment", entity: "GraphicReceivable", entityId: id, request, metadata: { amountCents: calc.paidNowCents, status, settlementId: settlement?.id } });
+    return NextResponse.json({ ...result, settlement });
   } catch (error: any) {
     const status = error?.message === "UNAUTHORIZED" ? 401 : error?.message === "FORBIDDEN_GRAPHIC_PERMISSION" || error?.message === "FORBIDDEN_MODULE" ? 403 : 500;
     return NextResponse.json({ error: status === 403 ? "Seu perfil nao permite registrar recebimentos." : "Nao foi possivel registrar o recebimento.", detail: process.env.NODE_ENV === "production" ? undefined : String(error?.message || error) }, { status });

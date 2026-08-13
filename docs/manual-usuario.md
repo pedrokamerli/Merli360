@@ -20,7 +20,7 @@
 16. Anexe artes, provas, PDFs ou fotos diretamente na ordem de producao quando precisar registrar evidencia.
 17. Use os botoes de relatorio para baixar CSV de oportunidades, orcamentos, pedidos, producao, recebimentos ou auditoria.
 18. Marque a entrega como entregue ou aceita.
-19. Registre recebimentos parciais ou totais.
+19. Registre recebimentos parciais ou totais informando conta e forma de pagamento; a baixa tambem entra no financeiro central quando houver titulo vinculado.
 20. Feche o pos-venda com satisfacao de 1 a 5.
 21. Se houver reclamacao, baixa satisfacao ou chance de nova venda, crie uma nova oportunidade/tarefa pelo proprio contato de pos-venda.
 

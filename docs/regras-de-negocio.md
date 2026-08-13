@@ -21,6 +21,8 @@
 - Processo com custo maior que zero entra como `VALIDATED`; processo sem custo entra como `PENDING_VALIDATION`.
 - Percentuais operacionais, como perda prevista, devem ficar entre 0 e 100.
 - Recebimento parcial deve manter valor pendente e status corretos.
+- Recebimento grafico vinculado a titulo financeiro deve criar pagamento, baixa financeira central e movimento de caixa.
+- Pagamento maior que o saldo pendente deve aplicar somente o saldo aberto.
 - Entrega concluida deve abrir pos-venda automaticamente.
 - Pos-venda deve validar satisfacao entre 1 e 5.
 - Pos-venda com satisfacao ate 3, reclamacao ou pedido de recorrencia deve criar nova oportunidade.

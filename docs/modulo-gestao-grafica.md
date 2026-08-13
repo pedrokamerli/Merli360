@@ -26,7 +26,7 @@ A chave do modulo e `gestao-grafica`. O super admin tambem tem acesso. Neste cic
 9. PDF comercial simples do orcamento, sem expor custos internos.
 10. Entrega pendente criada automaticamente ao aprovar orcamento.
 11. Entrega concluida cria pos-venda aberto.
-12. Recebimento parcial atualiza valor recebido, pendente e status sem alterar o valor vendido.
+12. Recebimento parcial atualiza valor recebido, pendente, status e baixa financeira central sem alterar o valor vendido.
 13. Cadastro nativo de produtos graficos, materiais, processos e parametros comerciais por tenant.
 14. Historico de custo de material criado ao cadastrar ou alterar custo manualmente.
 15. Produto cadastrado pode ser vinculado ao item do orcamento, preservando o snapshot comercial no pedido aprovado.
@@ -46,6 +46,8 @@ A chave do modulo e `gestao-grafica`. O super admin tambem tem acesso. Neste cic
 Indicadores financeiros, margem e custos exibem aviso quando a base nao possui dados suficientes ou quando custos foram importados/preenchidos como `PENDING_VALIDATION`.
 
 Indicadores financeiros ficam ocultos para perfis sem autorizacao financeira/custo. Nesses casos, o painel mostra `Restrito` em vez de expor valor vendido, faturado, recebido ou pendente.
+
+Cada recebimento grafico vinculado a um titulo financeiro cria baixa idempotente no financeiro central, com movimento de caixa associado. Pagamentos acima do saldo aberto aplicam somente o valor pendente.
 
 Custos zerados ou ainda nao conferidos entram como `PENDING_VALIDATION`. A validacao real dos valores deve ser feita pelo responsavel operacional antes de usar esses dados como base final de preco.
 
