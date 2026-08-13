@@ -290,9 +290,16 @@ export function GestaoGraficaWorkspace() {
                   {item.approvalRequired ? <span className="rounded-full bg-amber-50 px-2 py-1 text-xs font-black text-amber-700">Aprovar</span> : null}
                 </div>
                 <p className="mt-2 text-xs font-semibold text-slate-500">{item.approvalReason || "Dentro dos parametros atuais."}</p>
-                <button className="secondary-action mt-3 inline-flex w-full items-center justify-center gap-2 py-2" onClick={() => approveQuote(item.id)} type="button">
-                  <CheckCircle2 size={16} /> Aprovar e gerar pedido
-                </button>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {item.shareToken ? (
+                    <a className="secondary-action inline-flex items-center justify-center gap-2 py-2" href={`/q/grafica/${item.shareToken}`} target="_blank">
+                      <FileText size={16} /> Ver link
+                    </a>
+                  ) : null}
+                  <button className="secondary-action inline-flex items-center justify-center gap-2 py-2" onClick={() => approveQuote(item.id)} type="button">
+                    <CheckCircle2 size={16} /> Aprovar
+                  </button>
+                </div>
               </article>
             )) : <p className="rounded-lg bg-slate-50 p-4 text-sm font-bold text-slate-500">Sem orcamentos pendentes.</p>}
           </div>

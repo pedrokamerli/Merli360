@@ -633,6 +633,7 @@ model GraphicQuote {
   responsible User?    @relation(fields: [responsibleId], references: [id], onDelete: SetNull)
   number      Int
   version     Int      @default(1)
+  shareToken  String?
   status      String   @default("DRAFT")
   validUntil  DateTime
   paymentTerms String?
@@ -651,6 +652,7 @@ model GraphicQuote {
   approvalReason String?
   approvedAt DateTime?
   approvedById String?
+  viewedAt DateTime?
   cancelledAt DateTime?
   cancelReason String?
   createdById String?
@@ -665,6 +667,7 @@ model GraphicQuote {
   @@unique([tenantId, number, version])
   @@index([tenantId, status])
   @@index([tenantId, clientId])
+  @@index([shareToken])
 }
 
 model GraphicQuoteVersion {

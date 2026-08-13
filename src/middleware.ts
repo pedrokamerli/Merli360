@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const publicPaths = ["/login", "/api/login", "/manifest.webmanifest", "/icon.svg", "/sw.js", "/q", "/api/public-questionnaires"];
+const publicPaths = ["/login", "/api/login", "/manifest.webmanifest", "/icon.svg", "/sw.js", "/q", "/api/public-questionnaires", "/api/gestao-grafica/public-quotes"];
 const authCookieName = "merli360_session";
 const mustChangePasswordCookie = "merli360_must_change_password";
 const firstSetupCookie = "merli360_first_setup";

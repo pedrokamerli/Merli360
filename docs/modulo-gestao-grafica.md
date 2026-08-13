@@ -22,6 +22,8 @@ A chave do modulo e `gestao-grafica`. O super admin tambem tem acesso. Usuarios 
 5. Aprovacao do orcamento com transacao Prisma.
 6. Geracao automatica de pedido e ordem de producao.
 7. Separacao entre valor vendido, faturado e recebido.
+8. Link compartilhavel de orcamento por token.
+9. PDF comercial simples do orcamento, sem expor custos internos.
 
 ## Dados insuficientes
 

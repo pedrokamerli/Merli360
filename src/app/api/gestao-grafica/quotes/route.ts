@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import { requireApiUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
@@ -54,6 +55,7 @@ export async function POST(request: NextRequest) {
           clientId,
           responsibleId: user.id,
           number,
+          shareToken: crypto.randomBytes(24).toString("base64url"),
           validUntil,
           paymentTerms: String(body.paymentTerms || "") || null,
           notes: String(body.notes || "") || null,
