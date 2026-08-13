@@ -30,3 +30,6 @@
 - Orcamento aprovado nao pode ser alterado por acoes de status.
 - Orcamento recusado ou cancelado exige motivo e registra nova versao historica.
 - Duplicar orcamento cria novo numero, novo token publico e snapshot proprio.
+- Indicadores do dashboard devem exibir formula, periodo, fonte, criterio e limitacao.
+- Quando nao houver base suficiente, o indicador deve mostrar `Dados insuficientes para calcular este indicador.`
+- Indicadores financeiros nao devem expor valores para perfis sem permissao de custo ou financeiro.

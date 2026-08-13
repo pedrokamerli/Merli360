@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
-import { assertGraphicAccess, ensureGraphicDefaults, GRAPHIC_MODULE } from "@/lib/graphic";
+import { buildGraphicDashboard } from "@/lib/graphic-dashboard";
+import { assertGraphicAccess, ensureGraphicDefaults, getGraphicRole, GRAPHIC_MODULE, hasGraphicPermission } from "@/lib/graphic";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,8 @@ export async function GET(request: NextRequest) {
   try {
     const user = await requireApiUser();
     assertGraphicAccess(user);
+    const graphicRole = await getGraphicRole(user);
+    const canViewFinancial = hasGraphicPermission(graphicRole, "cost:view") || graphicRole === "FINANCE";
     await ensureGraphicDefaults(user.tenantId);
     const db = prisma as any;
     const today = new Date();
@@ -41,38 +44,25 @@ export async function GET(request: NextRequest) {
     }, {});
     const productionRows = productionOrders.map((item: any) => ({ ...item, attachments: attachmentsByProduction[item.id] || [] }));
 
-    const soldCents = orders.reduce((sum: number, item: any) => sum + item.soldValueCents, 0);
-    const billedCents = orders.reduce((sum: number, item: any) => sum + item.billedValueCents, 0);
-    const receivedCents = orders.reduce((sum: number, item: any) => sum + item.receivedValueCents, 0);
-    const openReceivablesCents = receivables.filter((item: any) => item.status !== "PAID").reduce((sum: number, item: any) => sum + item.amountCents - item.receivedCents, 0);
-    const overdueReceivablesCents = receivables.filter((item: any) => item.status !== "PAID" && new Date(item.dueDate) < today).reduce((sum: number, item: any) => sum + item.amountCents - item.receivedCents, 0);
-    const returnsToday = opportunities.filter((item: any) => item.nextFollowUp && new Date(item.nextFollowUp) >= today && new Date(item.nextFollowUp) < tomorrow).length;
-    const overdueReturns = opportunities.filter((item: any) => item.status === "OPEN" && item.nextFollowUp && new Date(item.nextFollowUp) < today).length;
-    const qualityAlerts = opportunities.filter((item: any) => item.status === "OPEN" && (!item.nextAction || !item.nextFollowUp)).length;
-    const reworkOpen = productionRows.flatMap((item: any) => item.reworks || []).filter((item: any) => item.status === "OPEN").length;
-    const wasteQuantity = productionRows.flatMap((item: any) => item.consumptions || []).reduce((sum: number, item: any) => sum + Number(item.wasteQuantity || 0), 0);
+    const dashboard = buildGraphicDashboard({
+      opportunities,
+      quotes,
+      orders,
+      productionOrders: productionRows,
+      deliveries,
+      postSales,
+      receivables,
+      today,
+      tomorrow,
+      canViewFinancial
+    });
 
     return NextResponse.json({
       module: GRAPHIC_MODULE,
-      metrics: {
-        opportunitiesOpen: opportunities.filter((item: any) => item.status === "OPEN").length,
-        returnsToday,
-        overdueReturns,
-        qualityAlerts,
-        quotesSent: quotes.filter((item: any) => ["SENT", "VIEWED"].includes(item.status)).length,
-        quotesApproved: quotes.filter((item: any) => item.status === "APPROVED").length,
-        productionOpen: productionRows.filter((item: any) => ["PENDING", "RELEASED", "IN_PROGRESS", "BLOCKED"].includes(item.status)).length,
-        reworkOpen,
-        wasteQuantity,
-        deliveriesOpen: deliveries.filter((item: any) => ["PENDING", "SCHEDULED"].includes(item.status)).length,
-        postSalesOpen: postSales.filter((item: any) => item.status === "OPEN").length,
-        soldCents,
-        billedCents,
-        receivedCents,
-        openReceivablesCents,
-        overdueReceivablesCents,
-        dataQuality: orders.length ? "OK" : "Dados insuficientes para calcular indicadores financeiros completos."
-      },
+      role: graphicRole,
+      canViewFinancial,
+      metrics: dashboard.metrics,
+      metricNotes: dashboard.metricNotes,
       opportunities,
       quotes,
       orders,

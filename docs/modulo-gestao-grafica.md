@@ -35,10 +35,13 @@ A chave do modulo e `gestao-grafica`. O super admin tambem tem acesso. Neste cic
 18. Importacao de planilha Excel com previa e confirmacao para parametros, materiais, processos e produtos.
 19. Upload privado de arquivos da grafica vinculado a oportunidade, orcamento, pedido, producao, entrega ou pos-venda.
 20. Orcamentos podem ser enviados, recusados, cancelados com motivo e duplicados com novo numero.
+21. Indicadores do painel informam formula, periodo, fonte, criterio, limitacao e qualidade do dado.
 
 ## Dados insuficientes
 
 Indicadores financeiros, margem e custos exibem aviso quando a base nao possui dados suficientes ou quando custos foram importados/preenchidos como `PENDING_VALIDATION`.
+
+Indicadores financeiros ficam ocultos para perfis sem autorizacao financeira/custo. Nesses casos, o painel mostra `Restrito` em vez de expor valor vendido, faturado, recebido ou pendente.
 
 Custos zerados ou ainda nao conferidos entram como `PENDING_VALIDATION`. A validacao real dos valores deve ser feita pelo responsavel operacional antes de usar esses dados como base final de preco.
 

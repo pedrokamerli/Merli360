@@ -91,6 +91,7 @@ export function GestaoGraficaWorkspace() {
   }, [data, search]);
 
   const metrics = data?.metrics || {};
+  const metricNotes = data?.metricNotes || [];
   const openOpportunities = (data?.opportunities || []).filter((item: AnyRow) => ["OPEN", "QUOTE_CREATED"].includes(item.status));
   const draftQuotes = (data?.quotes || []).filter((item: AnyRow) => item.status !== "APPROVED");
   const productionRows = data?.productionOrders || [];
@@ -362,7 +363,27 @@ export function GestaoGraficaWorkspace() {
         <MetricCard label="Orcamentos aprovados" value={String(metrics.quotesApproved || 0)} hint={`${metrics.quotesSent || 0} enviados/visualizados`} tone="good" />
         <MetricCard label="Producao aberta" value={String(metrics.productionOpen || 0)} hint="ordens pendentes" />
         <MetricCard label="Entregas abertas" value={String(metrics.deliveriesOpen || 0)} hint={`${metrics.postSalesOpen || 0} pos-vendas`} />
-        <MetricCard label="Recebimento pendente" value={brl(metrics.openReceivablesCents || 0)} hint={metrics.dataQuality || "valor aberto"} tone={metrics.overdueReceivablesCents ? "danger" : "warn"} />
+        <MetricCard label="Recebimento pendente" value={metrics.openReceivablesCents === null ? "Restrito" : brl(metrics.openReceivablesCents || 0)} hint={metrics.dataQuality || "valor aberto"} tone={metrics.overdueReceivablesCents ? "danger" : "warn"} />
+      </section>
+
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {metricNotes.map((item: AnyRow) => (
+          <article key={item.key} className="rounded-lg border border-slate-200 bg-white p-3">
+            <div className="flex items-start justify-between gap-2">
+              <h2 className="text-sm font-black text-slate-950">{item.label}</h2>
+              <span className={item.quality === "OK" ? "rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700" : item.quality === "RESTRICTED" ? "rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-600" : "rounded-full bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700"}>
+                {item.quality === "OK" ? "OK" : item.quality === "RESTRICTED" ? "Restrito" : "Insuficiente"}
+              </span>
+            </div>
+            {item.message ? <p className="mt-2 rounded-md bg-slate-50 p-2 text-xs font-bold text-slate-600">{item.message}</p> : null}
+            <dl className="mt-3 space-y-2 text-xs text-slate-600">
+              <div><dt className="font-black text-slate-800">Formula</dt><dd className="font-semibold">{item.formula}</dd></div>
+              <div><dt className="font-black text-slate-800">Fonte</dt><dd className="font-semibold">{item.source}</dd></div>
+              <div><dt className="font-black text-slate-800">Periodo</dt><dd className="font-semibold">{item.period}</dd></div>
+              <div><dt className="font-black text-slate-800">Criterio</dt><dd className="font-semibold">{item.criteria}</dd></div>
+            </dl>
+          </article>
+        ))}
       </section>
 
       <section className="surface-panel p-4">
