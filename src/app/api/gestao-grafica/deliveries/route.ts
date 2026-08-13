@@ -3,6 +3,7 @@ import { requireApiUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { assertGraphicPermission, dateOrNull } from "@/lib/graphic";
+import { validateDeliveryStatusChange } from "@/lib/graphic-deliveries";
 
 export const dynamic = "force-dynamic";
 
@@ -14,12 +15,11 @@ export async function PUT(request: NextRequest) {
     const id = String(body.id || "");
     const status = String(body.status || "");
     if (!id || !status) return NextResponse.json({ error: "Informe a entrega e o status." }, { status: 400 });
-    const allowed = ["PENDING", "SCHEDULED", "DELIVERED", "ACCEPTED", "COMPLAINT", "CANCELLED"];
-    if (!allowed.includes(status)) return NextResponse.json({ error: "Status de entrega invalido." }, { status: 400 });
-    if (["COMPLAINT", "CANCELLED"].includes(status) && !String(body.note || "").trim()) return NextResponse.json({ error: "Informe o motivo." }, { status: 400 });
     const db = prisma as any;
     const existing = await db.graphicDelivery.findFirst({ where: { id, tenantId: user.tenantId }, include: { order: true } });
     if (!existing) return NextResponse.json({ error: "Entrega nao encontrada." }, { status: 404 });
+    const validation = validateDeliveryStatusChange({ status, note: body.note, proofAttachmentId: body.proofAttachmentId || existing.proofAttachmentId });
+    if (validation) return NextResponse.json({ error: validation }, { status: 400 });
 
     const item = await db.$transaction(async (tx: any) => {
       const deliveredAt = status === "DELIVERED" || status === "ACCEPTED" ? dateOrNull(body.deliveredAt) || new Date() : existing.deliveredAt;
@@ -31,6 +31,7 @@ export async function PUT(request: NextRequest) {
           expectedAt: body.expectedAt ? dateOrNull(body.expectedAt) : existing.expectedAt,
           deliveredAt,
           responsibleName: String(body.responsibleName || existing.responsibleName || "") || null,
+          proofAttachmentId: body.proofAttachmentId ? String(body.proofAttachmentId) : existing.proofAttachmentId,
           acceptanceStatus: status === "ACCEPTED" ? "ACCEPTED" : existing.acceptanceStatus,
           complaint: status === "COMPLAINT" ? String(body.note || "") : existing.complaint,
           updatedById: user.id

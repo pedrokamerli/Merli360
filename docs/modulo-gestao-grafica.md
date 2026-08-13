@@ -46,6 +46,7 @@ A chave do modulo e `gestao-grafica`. O super admin tambem tem acesso. Neste cic
 29. Dashboard comercial mostra clientes novos, recorrentes, inativos e rankings por origem, produto, responsavel e segmento.
 30. Dashboard de producao mede horas previstas, horas realizadas, variacao, ciclo medio e tempo entre aprovacao e producao.
 31. Aprovacao de orcamento gera parcelas e titulos financeiros conforme percentuais da condicao de pagamento; quando nao reconhece a regra, gera parcela unica.
+32. Entregas podem ser agendadas com metodo, data prevista e responsavel; aceite exige comprovante anexado e reclamacao exige motivo.
 
 ## Dados insuficientes
 

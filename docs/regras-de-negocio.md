@@ -26,6 +26,7 @@
 - Parcelas percentuais do orcamento devem somar exatamente o valor vendido, ajustando centavos na ultima parcela.
 - Pagamento maior que o saldo pendente deve aplicar somente o saldo aberto.
 - Entrega concluida deve abrir pos-venda automaticamente.
+- Aceite de entrega exige comprovante anexado. Reclamacao e cancelamento de entrega exigem motivo.
 - Pos-venda deve validar satisfacao entre 1 e 5.
 - Pos-venda com satisfacao ate 3, reclamacao ou pedido de recorrencia deve criar nova oportunidade.
 - Pos-venda com proximo passo e data deve criar tarefa de retorno.

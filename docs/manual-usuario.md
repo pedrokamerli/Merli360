@@ -23,10 +23,12 @@
 19. Na producao, marque checklist, inicie/conclua etapas, registre consumo e retrabalho quando houver.
 20. Anexe artes, provas, PDFs ou fotos diretamente na ordem de producao quando precisar registrar evidencia.
 21. Use os botoes de relatorio para baixar CSV de oportunidades, orcamentos, pedidos, producao, recebimentos ou auditoria.
-22. Marque a entrega como entregue ou aceita.
-23. Registre recebimentos parciais ou totais por parcela, informando conta e forma de pagamento; a baixa tambem entra no financeiro central quando houver titulo vinculado.
-24. Feche o pos-venda com satisfacao de 1 a 5.
-25. Se houver reclamacao, baixa satisfacao ou chance de nova venda, crie uma nova oportunidade/tarefa pelo proprio contato de pos-venda.
+22. Agende a entrega com metodo, data prevista e responsavel.
+23. Anexe o comprovante da entrega antes de registrar o aceite.
+24. Marque a entrega como entregue ou aceita.
+25. Registre recebimentos parciais ou totais por parcela, informando conta e forma de pagamento; a baixa tambem entra no financeiro central quando houver titulo vinculado.
+26. Feche o pos-venda com satisfacao de 1 a 5.
+27. Se houver reclamacao, baixa satisfacao ou chance de nova venda, crie uma nova oportunidade/tarefa pelo proprio contato de pos-venda.
 
 Quando um indicador aparecer como `Dados insuficientes`, significa que ainda nao ha registros confiaveis para o calculo.
 Abra os detalhes do indicador para conferir formula, fonte, periodo e criterio usado no painel.

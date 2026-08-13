@@ -376,11 +376,15 @@ export function GestaoGraficaWorkspace() {
 
   async function updateDelivery(id: string, status: string) {
     const note = status === "COMPLAINT" ? prompt("Informe a reclamacao ou motivo") || "" : "";
+    const current = deliveryRows.find((item: AnyRow) => item.id === id) || {};
+    const method = status === "SCHEDULED" ? prompt("Metodo de entrega", current.method || "RETIRADA") || current.method : current.method;
+    const expectedAt = status === "SCHEDULED" ? prompt("Data prevista (AAAA-MM-DD)", current.expectedAt ? new Date(current.expectedAt).toISOString().slice(0, 10) : todayPlus(1)) || "" : "";
+    const responsibleName = ["SCHEDULED", "DELIVERED", "ACCEPTED"].includes(status) ? prompt("Responsavel pela entrega", current.responsibleName || "") || current.responsibleName || "" : current.responsibleName || "";
     setSaving(true);
     const response = await fetch("/api/gestao-grafica/deliveries", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, status, note, deliveredAt: new Date().toISOString().slice(0, 10) })
+      body: JSON.stringify({ id, status, note, method, expectedAt, responsibleName, deliveredAt: new Date().toISOString().slice(0, 10) })
     });
     const payload = await response.json();
     setSaving(false);
@@ -390,6 +394,10 @@ export function GestaoGraficaWorkspace() {
     }
     setMessage(status === "DELIVERED" || status === "ACCEPTED" ? "Entrega registrada e pos-venda criado." : "Entrega atualizada.");
     await load();
+  }
+
+  async function uploadDeliveryProof(file: File, deliveryId: string) {
+    return uploadGraphicAttachment(file, "delivery", deliveryId, "DELIVERY_PROOF");
   }
 
   async function registerPayment(id: string) {
@@ -859,11 +867,35 @@ export function GestaoGraficaWorkspace() {
           <div className="space-y-2">
             {deliveryRows.length ? deliveryRows.map((item: AnyRow) => (
               <article key={item.id} className="rounded-lg border border-slate-200 bg-white p-3">
-                <h3 className="font-black text-slate-950">Pedido #{item.order?.number || "-"}</h3>
-                <p className="text-xs font-semibold text-slate-500">{item.method} | {item.status} | prevista {day(item.expectedAt)}</p>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h3 className="font-black text-slate-950">Pedido #{item.order?.number || "-"}</h3>
+                    <p className="text-xs font-semibold text-slate-500">{item.method} | {item.status} | prevista {day(item.expectedAt)}</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">Responsavel: {item.responsibleName || "A definir"} | aceite {item.acceptanceStatus || "pendente"}</p>
+                  </div>
+                  {item.proofAttachmentId ? <CheckCircle2 className="shrink-0 text-emerald-600" size={18} /> : <AlertTriangle className="shrink-0 text-amber-500" size={18} />}
+                </div>
+                {(item.attachments || []).length ? (
+                  <div className="mt-3 space-y-2 rounded-md bg-slate-50 p-2">
+                    {(item.attachments || []).slice(0, 2).map((file: AnyRow) => (
+                      <a key={file.id} className="flex items-center justify-between gap-2 rounded-md bg-white px-2 py-2 text-xs font-bold text-slate-600" href={file.url || `/api/attachments/${file.attachmentId}`} target="_blank" rel="noreferrer">
+                        <span className="truncate">{file.attachment?.originalName || "Comprovante"}</span>
+                        <Download className="h-4 w-4 shrink-0" />
+                      </a>
+                    ))}
+                  </div>
+                ) : null}
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <button className="secondary-action py-2 text-xs" type="button" onClick={() => updateDelivery(item.id, "SCHEDULED")}>Agendar</button>
                   <button className="primary-action py-2 text-xs" type="button" onClick={() => updateDelivery(item.id, "DELIVERED")}>Entregue</button>
+                  <label className="secondary-action cursor-pointer py-2 text-center text-xs">
+                    Comprovante
+                    <input className="hidden" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) void uploadDeliveryProof(file, item.id);
+                      event.currentTarget.value = "";
+                    }} />
+                  </label>
                   <button className="secondary-action py-2 text-xs" type="button" onClick={() => updateDelivery(item.id, "ACCEPTED")}>Aceite</button>
                   <button className="secondary-action py-2 text-xs" type="button" onClick={() => updateDelivery(item.id, "COMPLAINT")}>Reclamacao</button>
                 </div>

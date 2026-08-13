@@ -36,19 +36,33 @@ export async function GET(request: NextRequest) {
       db.graphicPipelineStage.findMany({ where: { tenantId: user.tenantId, active: true, status: "ACTIVE" }, orderBy: { position: "asc" } })
     ]);
 
-    const productionAttachments = await db.graphicAttachment.findMany({
-      where: { tenantId: user.tenantId, linkedModel: "production", linkedId: { in: productionOrders.map((item: any) => item.id) }, status: "ACTIVE" },
+    const graphicAttachments = await db.graphicAttachment.findMany({
+      where: {
+        tenantId: user.tenantId,
+        OR: [
+          { linkedModel: "production", linkedId: { in: productionOrders.map((item: any) => item.id) } },
+          { linkedModel: "delivery", linkedId: { in: deliveries.map((item: any) => item.id) } }
+        ],
+        status: "ACTIVE"
+      },
       orderBy: { createdAt: "desc" }
     });
-    const attachmentRows = productionAttachments.length
-      ? await db.attachment.findMany({ where: { tenantId: user.tenantId, id: { in: productionAttachments.map((item: any) => item.attachmentId) } } })
+    const attachmentRows = graphicAttachments.length
+      ? await db.attachment.findMany({ where: { tenantId: user.tenantId, id: { in: graphicAttachments.map((item: any) => item.attachmentId) } } })
       : [];
     const attachmentsById = new Map(attachmentRows.map((item: any) => [item.id, item]));
+    const productionAttachments = graphicAttachments.filter((item: any) => item.linkedModel === "production");
+    const deliveryAttachments = graphicAttachments.filter((item: any) => item.linkedModel === "delivery");
     const attachmentsByProduction = productionAttachments.reduce((acc: Record<string, any[]>, item: any) => {
       acc[item.linkedId] = [...(acc[item.linkedId] || []), { ...item, attachment: attachmentsById.get(item.attachmentId), url: `/api/attachments/${item.attachmentId}` }];
       return acc;
     }, {});
+    const attachmentsByDelivery = deliveryAttachments.reduce((acc: Record<string, any[]>, item: any) => {
+      acc[item.linkedId] = [...(acc[item.linkedId] || []), { ...item, attachment: attachmentsById.get(item.attachmentId), url: `/api/attachments/${item.attachmentId}` }];
+      return acc;
+    }, {});
     const productionRows = productionOrders.map((item: any) => ({ ...item, attachments: attachmentsByProduction[item.id] || [] }));
+    const deliveryRows = deliveries.map((item: any) => ({ ...item, attachments: attachmentsByDelivery[item.id] || [] }));
     const clientIds = [...new Set([...opportunities.map((item: any) => item.clientId), ...orders.map((item: any) => item.clientId)].filter(Boolean))];
     const clients = clientIds.length ? await db.client.findMany({ where: { tenantId: user.tenantId, id: { in: clientIds } }, select: { id: true, name: true, segment: true } }) : [];
     const clientsById = new Map<string, any>(clients.map((item: any) => [item.id, item]));
@@ -68,7 +82,7 @@ export async function GET(request: NextRequest) {
       quotes: quoteRows,
       orders: orderRows,
       productionOrders: productionRows,
-      deliveries,
+      deliveries: deliveryRows,
       postSales,
       receivables,
       today,
@@ -88,7 +102,7 @@ export async function GET(request: NextRequest) {
       quotes: quoteRows,
       orders: orderRows,
       productionOrders: productionRows,
-      deliveries,
+      deliveries: deliveryRows,
       postSales,
       receivables,
       products,

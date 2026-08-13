@@ -90,6 +90,12 @@ export async function POST(request: NextRequest) {
       const graphicAttachment = await tx.graphicAttachment.create({
         data: { tenantId: user.tenantId, attachmentId: attachment.id, linkedModel, linkedId, purpose, createdById: user.id, updatedById: user.id }
       });
+      if (linkedModel === "delivery" && purpose === "DELIVERY_PROOF") {
+        await tx.graphicDelivery.update({
+          where: { id: linkedId },
+          data: { proofAttachmentId: attachment.id, updatedById: user.id }
+        });
+      }
       return { attachment, graphicAttachment };
     });
 
