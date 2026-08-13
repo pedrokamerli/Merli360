@@ -12,15 +12,16 @@
 8. Vincule um produto cadastrado ao orcamento, se aplicavel.
 9. Confira custo, margem, desconto e alertas.
 10. Envie, duplique, recuse ou cancele o orcamento quando necessario.
-11. Aprove o orcamento quando o cliente confirmar.
-12. O sistema cria pedido e ordem de producao automaticamente.
-13. Acompanhe producao, entrega e recebimento pelo painel.
-14. Na producao, marque checklist, inicie/conclua etapas, registre consumo e retrabalho quando houver.
-15. Anexe artes, provas, PDFs ou fotos diretamente na ordem de producao quando precisar registrar evidencia.
-16. Use os botoes de relatorio para baixar CSV de oportunidades, orcamentos, pedidos, producao, recebimentos ou auditoria.
-17. Marque a entrega como entregue ou aceita.
-18. Registre recebimentos parciais ou totais.
-19. Feche o pos-venda com satisfacao de 1 a 5.
+11. Se houver alerta de margem/desconto, use `Aprovar excecao` antes de gerar o pedido.
+12. Use `Gerar pedido` quando o cliente confirmar.
+13. O sistema cria pedido e ordem de producao automaticamente.
+14. Acompanhe producao, entrega e recebimento pelo painel.
+15. Na producao, marque checklist, inicie/conclua etapas, registre consumo e retrabalho quando houver.
+16. Anexe artes, provas, PDFs ou fotos diretamente na ordem de producao quando precisar registrar evidencia.
+17. Use os botoes de relatorio para baixar CSV de oportunidades, orcamentos, pedidos, producao, recebimentos ou auditoria.
+18. Marque a entrega como entregue ou aceita.
+19. Registre recebimentos parciais ou totais.
+20. Feche o pos-venda com satisfacao de 1 a 5.
 
 Quando um indicador aparecer como `Dados insuficientes`, significa que ainda nao ha registros confiaveis para o calculo.
 Abra os detalhes do indicador para conferir formula, fonte, periodo e criterio usado no painel.

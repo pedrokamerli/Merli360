@@ -9,6 +9,8 @@
 - Todo orcamento deve possuir cliente, responsavel, validade e pelo menos um item.
 - Desconto acima do limite do tenant exige aprovacao.
 - Preco abaixo da margem minima exige aprovacao.
+- Orcamento com excecao comercial pendente nao pode gerar pedido.
+- Aprovacao comercial decide `GraphicApprovalRequest` pendente e registra versao historica do orcamento.
 - Orcamento aprovado gera pedido e ordem de producao sem redigitacao.
 - Orcamento aprovado gera entrega pendente e recebimento financeiro vinculado.
 - Pedido preserva snapshot comercial e de custo do orcamento aprovado.

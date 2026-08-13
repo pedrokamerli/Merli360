@@ -255,7 +255,7 @@ export function GestaoGraficaWorkspace() {
   }
 
   async function quoteAction(id: string, action: string) {
-    const reason = ["refuse", "cancel"].includes(action) ? prompt(action === "refuse" ? "Motivo da recusa" : "Motivo do cancelamento") || "" : "";
+    const reason = ["refuse", "cancel", "approve-commercial"].includes(action) ? prompt(action === "refuse" ? "Motivo da recusa" : action === "cancel" ? "Motivo do cancelamento" : "Observacao da aprovacao comercial") || "" : "";
     if (["refuse", "cancel"].includes(action) && !reason) return;
     setSaving(true);
     const response = await fetch("/api/gestao-grafica/quotes", {
@@ -269,7 +269,7 @@ export function GestaoGraficaWorkspace() {
       setMessage(payload.error || "Nao foi possivel alterar o orcamento.");
       return;
     }
-    setMessage(action === "duplicate" ? `Orcamento duplicado: #${payload.item?.number}.` : "Orcamento atualizado.");
+    setMessage(action === "duplicate" ? `Orcamento duplicado: #${payload.item?.number}.` : action === "approve-commercial" ? "Excecao comercial aprovada. Agora o orcamento pode virar pedido." : "Orcamento atualizado.");
     await load();
   }
 
@@ -655,8 +655,13 @@ export function GestaoGraficaWorkspace() {
                       <FileText size={16} /> Ver link
                     </a>
                   ) : null}
+                  {item.approvalRequired ? (
+                    <button className="secondary-action inline-flex items-center justify-center gap-2 py-2" onClick={() => quoteAction(item.id, "approve-commercial")} type="button">
+                      <CheckCircle2 size={16} /> Aprovar excecao
+                    </button>
+                  ) : null}
                   <button className="secondary-action inline-flex items-center justify-center gap-2 py-2" onClick={() => approveQuote(item.id)} type="button">
-                    <CheckCircle2 size={16} /> Aprovar
+                    <CheckCircle2 size={16} /> Gerar pedido
                   </button>
                   <button className="secondary-action inline-flex items-center justify-center gap-2 py-2" onClick={() => quoteAction(item.id, "send")} type="button">Enviar</button>
                   <button className="secondary-action inline-flex items-center justify-center gap-2 py-2" onClick={() => quoteAction(item.id, "duplicate")} type="button">Duplicar</button>

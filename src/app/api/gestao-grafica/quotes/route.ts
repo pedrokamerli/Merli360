@@ -4,7 +4,7 @@ import { requireApiUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { assertGraphicPermission, calculateGraphicPricing, cents, dateOrNull, ensureGraphicDefaults, getGraphicSettings, graphicProductionSteps } from "@/lib/graphic";
-import { nextQuoteVersion, validateQuoteStatusAction } from "@/lib/graphic-quotes";
+import { nextQuoteVersion, validateCommercialApproval, validateQuoteStatusAction } from "@/lib/graphic-quotes";
 
 export const dynamic = "force-dynamic";
 
@@ -127,7 +127,7 @@ export async function PUT(request: NextRequest) {
     const user = await requireApiUser();
     const body = await request.json();
     const action = String(body.action || "approve");
-    await assertGraphicPermission(user, action === "approve" ? "quote:approve" : "quote:create");
+    await assertGraphicPermission(user, ["approve", "approve-commercial"].includes(action) ? "quote:approve" : "quote:create");
     const id = String(body.id || "");
     if (!id) return NextResponse.json({ error: "Orcamento obrigatorio." }, { status: 400 });
     const db = prisma as any;
@@ -226,11 +226,36 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ item: result });
     }
 
+    if (action === "approve-commercial") {
+      const note = String(body.note || body.reason || "").trim();
+      const result = await db.$transaction(async (tx: any) => {
+        const quote = await tx.graphicQuote.findFirst({ where: { id, tenantId: user.tenantId }, include: { approvals: { where: { status: "PENDING" } }, versions: true, items: true } });
+        if (!quote) throw new Error("QUOTE_NOT_FOUND");
+        const validation = validateCommercialApproval({ status: quote.status, approvalRequired: quote.approvalRequired, pendingApprovals: quote.approvals.length });
+        if (validation) throw new Error(validation);
+        await tx.graphicApprovalRequest.updateMany({
+          where: { tenantId: user.tenantId, quoteId: id, status: "PENDING" },
+          data: { status: "APPROVED", decision: note || "Aprovado comercialmente.", decidedById: user.id, decidedAt: new Date(), updatedById: user.id }
+        });
+        const updated = await tx.graphicQuote.update({
+          where: { id },
+          data: { approvalRequired: false, approvalReason: null, updatedById: user.id }
+        });
+        await tx.graphicQuoteVersion.create({
+          data: { tenantId: user.tenantId, quoteId: id, version: nextQuoteVersion(quote.versions), snapshot: JSON.stringify({ action, note, quote, items: quote.items, approvals: quote.approvals }), createdById: user.id, updatedById: user.id }
+        });
+        return updated;
+      });
+      await audit({ tenantId: user.tenantId, userId: user.id, action: "graphic_approve_commercial_exception", entity: "GraphicQuote", entityId: id, request, metadata: { note } });
+      return NextResponse.json({ item: result });
+    }
+
     const result = await db.$transaction(async (tx: any) => {
-      const quote = await tx.graphicQuote.findFirst({ where: { id, tenantId: user.tenantId }, include: { items: true } });
+      const quote = await tx.graphicQuote.findFirst({ where: { id, tenantId: user.tenantId }, include: { items: true, approvals: { where: { status: "PENDING" } } } });
       if (!quote) throw new Error("QUOTE_NOT_FOUND");
       if (quote.status === "APPROVED") throw new Error("QUOTE_ALREADY_APPROVED");
       if (new Date(quote.validUntil) < new Date()) throw new Error("QUOTE_EXPIRED");
+      if (quote.approvalRequired || quote.approvals.length) throw new Error("QUOTE_COMMERCIAL_APPROVAL_PENDING");
       const orderNumber = await nextNumber(tx, user.tenantId, "graphicOrder");
       const approvedQuote = await tx.graphicQuote.update({ where: { id }, data: { status: "APPROVED", approvedAt: new Date(), approvedById: user.id, updatedById: user.id } });
       const order = await tx.graphicOrder.create({
@@ -303,7 +328,8 @@ export async function PUT(request: NextRequest) {
     const messages: Record<string, string> = {
       QUOTE_NOT_FOUND: "Orcamento nao encontrado.",
       QUOTE_ALREADY_APPROVED: "Orcamento ja aprovado.",
-      QUOTE_EXPIRED: "Orcamento vencido. Gere uma nova versao antes de aprovar."
+      QUOTE_EXPIRED: "Orcamento vencido. Gere uma nova versao antes de aprovar.",
+      QUOTE_COMMERCIAL_APPROVAL_PENDING: "Aprove a excecao comercial antes de gerar pedido."
     };
     const status = error?.message === "UNAUTHORIZED" ? 401 : error?.message === "FORBIDDEN_GRAPHIC_PERMISSION" || error?.message === "FORBIDDEN_MODULE" ? 403 : 400;
     return NextResponse.json({ error: status === 403 ? "Seu perfil nao permite alterar este orcamento." : messages[error?.message] || String(error?.message || "Nao foi possivel alterar o orcamento."), detail: process.env.NODE_ENV === "production" ? undefined : String(error?.message || error) }, { status });

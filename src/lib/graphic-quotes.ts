@@ -24,3 +24,10 @@ export function validateQuoteStatusAction(current: string, next: string, reason?
 export function nextQuoteVersion(versions: { version: number }[]) {
   return Math.max(0, ...versions.map((item) => item.version || 0)) + 1;
 }
+
+export function validateCommercialApproval(input: { status: string; approvalRequired: boolean; pendingApprovals: number }) {
+  if (input.status === "APPROVED") return "Orcamento aprovado nao precisa de revisao comercial.";
+  if (isTerminalQuoteStatus(input.status)) return "Orcamento encerrado nao pode receber aprovacao comercial.";
+  if (!input.approvalRequired && input.pendingApprovals < 1) return "Orcamento nao possui excecao comercial pendente.";
+  return null;
+}
