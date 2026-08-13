@@ -5,6 +5,7 @@ import { AlertTriangle, Banknote, CheckCircle2, ClipboardList, Download, Factory
 import { MetricCard } from "@/components/MetricCard";
 
 type AnyRow = Record<string, any>;
+type GraphicTab = "dashboard" | "base" | "commercial" | "production" | "delivery" | "finance" | "postSale";
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const brl = (cents: number) => money.format((cents || 0) / 100);
@@ -85,6 +86,7 @@ export function GestaoGraficaWorkspace() {
   const [importPreview, setImportPreview] = useState<AnyRow | null>(null);
   const [opportunityForm, setOpportunityForm] = useState(opportunityInitial);
   const [quoteForm, setQuoteForm] = useState({ ...quoteInitial, validUntil: todayPlus(7) });
+  const [activeTab, setActiveTab] = useState<GraphicTab>("dashboard");
 
   async function load() {
     setLoading(true);
@@ -125,6 +127,15 @@ export function GestaoGraficaWorkspace() {
   const settingMap = Object.fromEntries(settings.map((item: AnyRow) => [item.key, item.value]));
   const activeStages = stages.length ? stages : [{ name: "OPEN" }, { name: "QUOTE_CREATED" }, { name: "WON" }, { name: "LOST" }];
   const pipelineStages = activeStages.map((stage: AnyRow) => ({ ...stage, items: (data?.opportunities || []).filter((item: AnyRow) => item.status === stage.name) }));
+  const tabs: { key: GraphicTab; label: string; count: string }[] = [
+    { key: "dashboard", label: "Painel", count: String(metrics.qualityAlerts || 0) },
+    { key: "commercial", label: "Comercial", count: String(openOpportunities.length) },
+    { key: "production", label: "Producao", count: String(productionRows.length) },
+    { key: "delivery", label: "Entregas", count: String(deliveryRows.length) },
+    { key: "finance", label: "Recebimentos", count: String(receivableRows.filter((item: AnyRow) => item.status !== "PAID").length) },
+    { key: "postSale", label: "Pos-venda", count: String(postSaleRows.filter((item: AnyRow) => item.status === "OPEN").length) },
+    { key: "base", label: "Base", count: String(products.length + materials.length + processes.length) }
+  ];
 
   async function saveCatalog(type: string, payload: AnyRow) {
     setSaving(true);
@@ -461,7 +472,21 @@ export function GestaoGraficaWorkspace() {
       {message ? <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{message}</div> : null}
       {loading ? <div className="surface-panel flex items-center gap-2 p-5 text-sm font-bold text-slate-600"><Loader2 className="animate-spin" size={18} /> Carregando modulo...</div> : null}
 
-      <section className="surface-panel p-4">
+      <nav className="surface-panel sticky top-2 z-10 flex gap-2 overflow-x-auto p-2">
+        {tabs.map((tab) => (
+          <button
+            key={tab.key}
+            className={`inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-xs font-black transition ${activeTab === tab.key ? "bg-slate-950 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}
+            onClick={() => setActiveTab(tab.key)}
+            type="button"
+          >
+            {tab.label}
+            <span className={`rounded-full px-2 py-0.5 text-[10px] ${activeTab === tab.key ? "bg-white/15 text-white" : "bg-slate-100 text-slate-600"}`}>{tab.count}</span>
+          </button>
+        ))}
+      </nav>
+
+      {activeTab === "dashboard" ? <section className="surface-panel p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-lg font-black text-slate-950">Relatorios da grafica</h2>
@@ -475,9 +500,9 @@ export function GestaoGraficaWorkspace() {
             ))}
           </div>
         </div>
-      </section>
+      </section> : null}
 
-      <section className="grid grid-cols-2 gap-3 xl:grid-cols-6">
+      {activeTab === "dashboard" ? <section className="grid grid-cols-2 gap-3 xl:grid-cols-6">
         <MetricCard label="Oportunidades abertas" value={String(metrics.opportunitiesOpen || 0)} hint="funil grafico" />
         <MetricCard label="Retornos hoje" value={String(metrics.returnsToday || 0)} hint={`${metrics.overdueReturns || 0} atrasados`} tone={metrics.overdueReturns ? "warn" : "default"} />
         <MetricCard label="Alertas de qualidade" value={String(metrics.qualityAlerts || 0)} hint="sem proximo passo completo" tone={metrics.qualityAlerts ? "danger" : "good"} />
@@ -490,18 +515,18 @@ export function GestaoGraficaWorkspace() {
         <MetricCard label="Aprov. ate producao" value={metrics.averageApprovalToProductionHours === null ? "Sem base" : `${metrics.averageApprovalToProductionHours}h`} hint={metrics.productionTimeVariancePercent === null ? "sem variacao" : `${metrics.productionTimeVariancePercent}% var.`} />
         <MetricCard label="Entregas abertas" value={String(metrics.deliveriesOpen || 0)} hint={metrics.deliveryOnTimePercent === null ? `${metrics.postSalesOpen || 0} pos-vendas` : `${metrics.deliveryOnTimePercent}% no prazo`} />
         <MetricCard label="Recebimento pendente" value={metrics.openReceivablesCents === null ? "Restrito" : brl(metrics.openReceivablesCents || 0)} hint={metrics.dataQuality || "valor aberto"} tone={metrics.overdueReceivablesCents ? "danger" : "warn"} />
-      </section>
+      </section> : null}
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      {activeTab === "dashboard" ? <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <GroupBox title="Vendas por origem" rows={groups.salesBySource || []} />
         <GroupBox title="Vendas por produto" rows={groups.salesByProduct || []} />
         <GroupBox title="Vendas por responsavel" rows={groups.salesByResponsible || []} />
         <GroupBox title="Vendas por segmento" rows={groups.salesBySegment || []} money />
         <GroupBox title="Resultado por produto" rows={groups.revenueByProduct || []} money />
         <GroupBox title="Resultado por cliente" rows={groups.revenueByClient || []} money />
-      </section>
+      </section> : null}
 
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      {activeTab === "dashboard" ? <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {metricNotes.map((item: AnyRow) => (
           <article key={item.key} className="rounded-lg border border-slate-200 bg-white p-3">
             <div className="flex items-start justify-between gap-2">
@@ -519,9 +544,9 @@ export function GestaoGraficaWorkspace() {
             </dl>
           </article>
         ))}
-      </section>
+      </section> : null}
 
-      <section className="surface-panel p-4">
+      {activeTab === "base" ? <section className="surface-panel p-4">
         <div className="mb-4 flex items-center gap-2">
           <Settings size={18} className="text-emerald-600" />
           <h2 className="text-lg font-black text-slate-950">Produtos, custos e parametros</h2>
@@ -656,9 +681,9 @@ export function GestaoGraficaWorkspace() {
           <CatalogList title="Materiais" rows={materials} value={(item) => `${brl(item.currentCostCents)} | perda ${Number(item.wastePercent || 0).toFixed(1)}%`} />
           <CatalogList title="Processos" rows={processes} value={(item) => `${brl(item.costCents)} | ${item.type}`} />
         </div>
-      </section>
+      </section> : null}
 
-      <section className="grid gap-4 xl:grid-cols-[.95fr_1.05fr]">
+      {activeTab === "commercial" ? <section className="grid gap-4 xl:grid-cols-[.95fr_1.05fr]">
         <form className="surface-panel p-4" onSubmit={createOpportunity}>
           <div className="mb-4 flex items-center gap-2">
             <Plus size={18} className="text-emerald-600" />
@@ -724,9 +749,9 @@ export function GestaoGraficaWorkspace() {
             <FileText size={16} /> Gerar orcamento
           </button>
         </form>
-      </section>
+      </section> : null}
 
-      <section className="surface-panel p-4">
+      {activeTab === "commercial" ? <section className="surface-panel p-4">
         <div className="mb-4 flex items-center justify-between gap-2">
           <h2 className="text-lg font-black text-slate-950">Funil da grafica</h2>
           <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">{openOpportunities.length} abertas</span>
@@ -753,9 +778,9 @@ export function GestaoGraficaWorkspace() {
             </div>
           ))}
         </div>
-      </section>
+      </section> : null}
 
-      <section className="grid gap-4 xl:grid-cols-3">
+      {activeTab === "commercial" ? <section className="grid gap-4 xl:grid-cols-2">
         <div className="surface-panel p-4">
           <div className="mb-3 flex items-center gap-2">
             <Search size={17} />
@@ -829,21 +854,24 @@ export function GestaoGraficaWorkspace() {
             )) : <p className="rounded-lg bg-slate-50 p-4 text-sm font-bold text-slate-500">Sem orcamentos pendentes.</p>}
           </div>
         </div>
+      </section> : null}
 
-        <div className="surface-panel p-4">
-          <div className="mb-4 flex items-center gap-2">
+      {activeTab === "production" ? <section className="surface-panel p-4">
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
             <Factory size={18} className="text-emerald-600" />
             <h2 className="text-lg font-black text-slate-950">Producao</h2>
           </div>
-          <div className="space-y-2">
-            {productionRows.length ? productionRows.map((item: AnyRow) => (
-              <ProductionCard key={item.id} item={item} materials={materials} onStatus={updateProduction} onAction={updateProductionAction} onUpload={uploadGraphicAttachment} onRemoveAttachment={removeGraphicAttachment} />
-            )) : <p className="rounded-lg bg-slate-50 p-4 text-sm font-bold text-slate-500">Nenhuma ordem de producao.</p>}
-          </div>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">{productionRows.length} ordem(ns)</span>
         </div>
-      </section>
+        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+          {productionRows.length ? productionRows.map((item: AnyRow) => (
+            <ProductionCard key={item.id} item={item} materials={materials} onStatus={updateProduction} onAction={updateProductionAction} onUpload={uploadGraphicAttachment} onRemoveAttachment={removeGraphicAttachment} />
+          )) : <p className="rounded-lg bg-slate-50 p-4 text-sm font-bold text-slate-500">Nenhuma ordem de producao.</p>}
+        </div>
+      </section> : null}
 
-      <section className="surface-panel p-4">
+      {activeTab === "finance" ? <section className="surface-panel p-4">
         <div className="mb-3 flex items-center gap-2">
           <Banknote size={18} className="text-emerald-600" />
           <h2 className="text-lg font-black text-slate-950">Venda, faturamento e recebimento</h2>
@@ -856,15 +884,17 @@ export function GestaoGraficaWorkspace() {
           <MetricCard label="Descontos" value={metrics.discountsCents === null ? "Restrito" : brl(metrics.discountsCents || 0)} tone={metrics.discountsCents ? "warn" : "default"} />
           <MetricCard label="Vencidos" value={metrics.overdueReceivablesCents === null ? "Restrito" : brl(metrics.overdueReceivablesCents || 0)} tone={metrics.overdueReceivablesCents ? "danger" : "good"} />
         </div>
-      </section>
+      </section> : null}
 
-      <section className="grid gap-4 xl:grid-cols-3">
-        <div className="surface-panel p-4">
-          <div className="mb-4 flex items-center gap-2">
+      {activeTab === "delivery" ? <section className="surface-panel p-4">
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
             <PackageCheck size={18} className="text-emerald-600" />
             <h2 className="text-lg font-black text-slate-950">Entregas</h2>
           </div>
-          <div className="space-y-2">
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">{deliveryRows.length} entrega(s)</span>
+        </div>
+        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
             {deliveryRows.length ? deliveryRows.map((item: AnyRow) => (
               <article key={item.id} className="rounded-lg border border-slate-200 bg-white p-3">
                 <div className="flex items-start justify-between gap-2">
@@ -901,15 +931,18 @@ export function GestaoGraficaWorkspace() {
                 </div>
               </article>
             )) : <p className="rounded-lg bg-slate-50 p-4 text-sm font-bold text-slate-500">Nenhuma entrega pendente.</p>}
-          </div>
         </div>
+      </section> : null}
 
-        <div className="surface-panel p-4">
-          <div className="mb-4 flex items-center gap-2">
+      {activeTab === "finance" ? <section className="surface-panel p-4">
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
             <Banknote size={18} className="text-emerald-600" />
             <h2 className="text-lg font-black text-slate-950">Recebimentos</h2>
           </div>
-          <div className="space-y-2">
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">{receivableRows.length} parcela(s)</span>
+        </div>
+        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
             {receivableRows.length ? receivableRows.map((item: AnyRow) => (
               <article key={item.id} className="rounded-lg border border-slate-200 bg-white p-3">
                 <h3 className="font-black text-slate-950">{brl(item.amountCents - item.receivedCents)} pendente</h3>
@@ -920,15 +953,18 @@ export function GestaoGraficaWorkspace() {
                 ) : null}
               </article>
             )) : <p className="rounded-lg bg-slate-50 p-4 text-sm font-bold text-slate-500">Nenhum recebimento grafico.</p>}
-          </div>
         </div>
+      </section> : null}
 
-        <div className="surface-panel p-4">
-          <div className="mb-4 flex items-center gap-2">
+      {activeTab === "postSale" ? <section className="surface-panel p-4">
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
             <Star size={18} className="text-amber-500" />
             <h2 className="text-lg font-black text-slate-950">Pos-venda</h2>
           </div>
-          <div className="space-y-2">
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">{postSaleRows.length} contato(s)</span>
+        </div>
+        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
             {postSaleRows.length ? postSaleRows.map((item: AnyRow) => (
               <article key={item.id} className="rounded-lg border border-slate-200 bg-white p-3">
                 <h3 className="font-black text-slate-950">Pedido #{item.order?.number || "-"}</h3>
@@ -940,9 +976,8 @@ export function GestaoGraficaWorkspace() {
                 ) : null}
               </article>
             )) : <p className="rounded-lg bg-slate-50 p-4 text-sm font-bold text-slate-500">Nenhum pos-venda aberto.</p>}
-          </div>
         </div>
-      </section>
+      </section> : null}
     </div>
   );
 }
