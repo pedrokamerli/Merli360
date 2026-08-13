@@ -36,3 +36,6 @@ coverage/
 .agents/
 .codex-remote-attachments/
 .gitignore.before-git-migration-*
+
+# local reference projects
+grafica-saas/

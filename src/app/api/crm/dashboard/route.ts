@@ -5,6 +5,22 @@ import { CRM_MODULE } from "@/lib/crm";
 
 export const dynamic = "force-dynamic";
 
+type LeadDashboardRow = {
+  id: string;
+  status: string;
+  city?: string | null;
+  segment?: string | null;
+  ownerName?: string | null;
+  origin?: string | null;
+  nextFollowUp?: Date | null;
+  attempts: number;
+  proposedValue: number;
+  closeChance: number;
+  wonValue: number;
+  opportunityStatus: string;
+  hasOpportunity: boolean;
+};
+
 function sum(items: Array<{ proposedValue: number; closeChance: number; wonValue: number }>) {
   return items.reduce((total, item) => total + item.proposedValue, 0);
 }
@@ -19,7 +35,7 @@ export async function GET(request: NextRequest) {
   const [leads, activities] = await Promise.all([
     prisma.lead.findMany({ where: filter, select: { id: true, name: true, companyName: true, city: true, segment: true, status: true, temperature: true, priority: true, ownerName: true, origin: true, contact: true, nextAction: true, nextFollowUp: true, attempts: true, proposedValue: true, closeChance: true, wonValue: true, opportunityStatus: true, hasOpportunity: true, createdAt: true } }),
     prisma.crmActivity.findMany({ where: { tenantId: user.tenantId, createdAt: { gte: new Date(Date.now() - 30 * 86400000) } }, select: { type: true, createdAt: true } })
-  ]);
+  ]) as [LeadDashboardRow[], Array<{ type: string; createdAt: Date }>];
   const stage = (name: string) => leads.filter((lead) => lead.status === name).length;
   const active = leads.filter((lead) => !["Cliente", "Sem interesse", "Nao contatar", "Nutricao"].includes(lead.status));
   const won = leads.filter((lead) => lead.opportunityStatus === "ganha" || lead.status === "Cliente");

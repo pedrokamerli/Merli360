@@ -30,11 +30,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ m
   ]);
 
   const items = [
-    ...receivables.map((item) => ({ date: item.dueDate, title: item.description, type: "receber", status: item.status, amount: item.amount })),
-    ...payables.map((item) => ({ date: item.dueDate, title: item.description, type: "pagar", status: item.status, amount: item.amount })),
-    ...sales.map((item) => ({ date: item.deliveryDate!, title: `Entrega - ${item.product.name} para ${item.buyer?.name || "comprador"}`, type: "entrega", status: item.status, amount: item.totalAmount })),
-    ...plantings.map((item) => ({ date: item.expectedHarvest!, title: `Colheita prevista - ${item.product.name}`, type: "colheita", status: item.status, amount: item.directCost })),
-    ...events.map((item) => ({ date: item.date, title: item.title, type: item.type, status: item.status, amount: item.amount || 0 }))
+    ...receivables.map((item: any) => ({ date: item.dueDate, title: item.description, type: "receber", status: item.status, amount: item.amount })),
+    ...payables.map((item: any) => ({ date: item.dueDate, title: item.description, type: "pagar", status: item.status, amount: item.amount })),
+    ...sales.map((item: any) => ({ date: item.deliveryDate!, title: `Entrega - ${item.product.name} para ${item.buyer?.name || "comprador"}`, type: "entrega", status: item.status, amount: item.totalAmount })),
+    ...plantings.map((item: any) => ({ date: item.expectedHarvest!, title: `Colheita prevista - ${item.product.name}`, type: "colheita", status: item.status, amount: item.directCost })),
+    ...events.map((item: any) => ({ date: item.date, title: item.title, type: item.type, status: item.status, amount: item.amount || 0 }))
   ].sort((a, b) => a.date.getTime() - b.date.getTime());
 
   return (

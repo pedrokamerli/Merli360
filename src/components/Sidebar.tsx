@@ -24,7 +24,8 @@ import {
   Paperclip,
   Menu,
   X,
-  Settings
+  Settings,
+  Printer
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useState } from "react";
@@ -58,11 +59,13 @@ const consultoriaItems = [
   { href: "/importar", label: "Importar Extrato", icon: Upload },
   { href: "/questionarios", label: "Questionarios", icon: FileSpreadsheet },
   { href: "/configuracoes", label: "Configuracoes", icon: Settings },
-  { href: "/relatorios", label: "Relatorios", icon: BarChart3 }
+  { href: "/relatorios", label: "Relatorios", icon: BarChart3 },
+  { href: "/grafica", label: "Grafica CRM", icon: Printer }
 ];
 
 const crmItems = [
   { href: "/crm", label: "CRM Comercial", icon: Users },
+  { href: "/grafica", label: "Grafica CRM", icon: Printer },
   { href: "/configuracoes", label: "Configuracoes CRM", icon: Settings }
 ];
 

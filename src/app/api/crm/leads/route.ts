@@ -101,15 +101,23 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const user = await requireApiModule(CRM_MODULE);
-  const body = await request.json();
-  const payload = cleanData(body.data || body);
-  if (!String(payload.name || "").trim()) return NextResponse.json({ error: "Informe o nome do lead." }, { status: 400 });
-  const duplicate = await prisma.lead.findFirst({ where: { tenantId: user.tenantId, archivedAt: null, OR: [...(payload.normalizedPhone ? [{ normalizedPhone: payload.normalizedPhone }] : []), ...(payload.email ? [{ email: payload.email }] : []), { name: String(payload.name), city: payload.city as string || null }] } });
-  if (duplicate && !body.forceDuplicate) return NextResponse.json({ error: "Existe um lead semelhante. Revise antes de criar outro.", duplicate }, { status: 409 });
-  const lead = await prisma.lead.create({ data: { ...payload, tenantId: user.tenantId } as any });
-  await audit({ tenantId: user.tenantId, userId: user.id, action: "crm_create_lead", entity: "lead", entityId: lead.id, request });
-  return NextResponse.json({ item: lead });
+  try {
+    const user = await requireApiModule(CRM_MODULE);
+    const body = await request.json();
+    const payload = cleanData(body.data || body);
+    if (!String(payload.name || "").trim()) return NextResponse.json({ error: "Informe o nome do lead." }, { status: 400 });
+    const duplicate = await prisma.lead.findFirst({ where: { tenantId: user.tenantId, archivedAt: null, OR: [...(payload.normalizedPhone ? [{ normalizedPhone: payload.normalizedPhone }] : []), ...(payload.email ? [{ email: payload.email }] : []), { name: String(payload.name), city: payload.city as string || null }] } });
+    if (duplicate && !body.forceDuplicate) return NextResponse.json({ error: "Existe um lead semelhante. Revise antes de criar outro.", duplicate }, { status: 409 });
+    const lead = await prisma.lead.create({ data: { ...payload, tenantId: user.tenantId } as any });
+    await audit({ tenantId: user.tenantId, userId: user.id, action: "crm_create_lead", entity: "lead", entityId: lead.id, request });
+    return NextResponse.json({ item: lead });
+  } catch (error: any) {
+    console.error("crm_create_lead_failed", error);
+    return NextResponse.json({
+      error: "Nao foi possivel criar o lead.",
+      detail: process.env.NODE_ENV === "production" ? undefined : String(error?.message || error)
+    }, { status: 500 });
+  }
 }
 
 export async function PUT(request: NextRequest) {
