@@ -4,6 +4,7 @@ export type GraphicImportItem = {
   type: "product" | "material" | "process" | "setting";
   key: string;
   name?: string;
+  code?: string;
   value?: string;
   unit?: string;
   category?: string;
@@ -11,6 +12,10 @@ export type GraphicImportItem = {
   costCents?: number;
   wastePercent?: number;
   processType?: string;
+  materialCode?: string;
+  processCode?: string;
+  extraCostCents?: number;
+  laborHours?: number;
   rowNumber: number;
   sheet: string;
   validationStatus: "PENDING_VALIDATION";
@@ -34,6 +39,17 @@ function get(row: Record<string, unknown>, names: string[]) {
   return key ? String(row[key] ?? "").trim() : "";
 }
 
+function toNumber(value: unknown) {
+  const raw = String(value ?? "").trim().replace("%", "").replace(",", ".").replace(/[^\d.-]/g, "");
+  const parsed = Number(raw || 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function percentToNumber(value: unknown) {
+  const parsed = toNumber(value);
+  return parsed > 0 && parsed <= 1 && String(value ?? "").includes("%") ? parsed * 100 : parsed;
+}
+
 export function moneyToCents(value: unknown) {
   const raw = String(value ?? "").trim();
   if (!raw) return 0;
@@ -50,8 +66,18 @@ export function isTemplateRow(row: Record<string, unknown>) {
 function rowsFromSheet(workbook: XLSX.WorkBook, sheetName: string) {
   const sheet = workbook.Sheets[sheetName];
   if (!sheet) return [] as Record<string, unknown>[];
-  const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "", raw: false });
-  return raw.filter((row) => Object.values(row).some((value) => String(value ?? "").trim()));
+  const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "", raw: false });
+  const knownHeaders = new Set(["parametro", "valor", "material", "produto", "processo", "unidade", "custo", "custo unitario", "codigo", "cliente"]);
+  const headerIndex = matrix.findIndex((row) => {
+    const labels = row.map((value) => normalize(String(value ?? ""))).filter(Boolean);
+    return labels.filter((label) => knownHeaders.has(label)).length >= 2;
+  });
+  if (headerIndex < 0) return [];
+  const headers = matrix[headerIndex].map((value, column) => String(value || `COL${column + 1}`).trim());
+  return matrix.slice(headerIndex + 1).flatMap((values, index) => {
+    const row = Object.fromEntries(headers.map((header, column) => [header, values[column] ?? ""]));
+    return Object.values(row).some((value) => String(value ?? "").trim()) ? [{ ...row, __rowNumber: headerIndex + index + 2 }] : [];
+  });
 }
 
 function mapSettings(rows: Record<string, unknown>[], sheet: string) {
@@ -67,28 +93,29 @@ function mapSettings(rows: Record<string, unknown>[], sheet: string) {
   };
   return rows.flatMap((row, index) => {
     if (isTemplateRow(row)) return [];
-    const rawKey = get(row, ["parametro", "parÃ¢metro", "chave", "nome", "configuracao", "configuraÃ§Ã£o"]);
+    const rawKey = get(row, ["parametro", "chave", "nome", "configuracao"]);
     const value = get(row, ["valor", "percentual", "%"]);
     const key = keys[normalize(rawKey)] || rawKey;
     if (!key || !value) return [];
-    return [{ type: "setting" as const, key, value, rowNumber: index + 2, sheet, validationStatus: "PENDING_VALIDATION" as const }];
+    return [{ type: "setting" as const, key, value, rowNumber: Number(row.__rowNumber || index + 2), sheet, validationStatus: "PENDING_VALIDATION" as const }];
   });
 }
 
 function mapMaterials(rows: Record<string, unknown>[], sheet: string) {
   return rows.flatMap((row, index) => {
     if (isTemplateRow(row)) return [];
-    const name = get(row, ["material", "nome", "descricao", "descriÃ§Ã£o", "insumo"]);
+    const name = get(row, ["material", "nome", "descricao", "insumo"]);
     if (!name) return [];
-    const wastePercent = Number(String(get(row, ["perda", "perda %", "desperdicio", "desperdÃ­cio"]) || "0").replace(",", ".")) || 0;
+    const code = get(row, ["codigo", "cod"]);
     return [{
       type: "material" as const,
-      key: name,
+      key: code || name,
       name,
+      code: code || undefined,
       unit: get(row, ["unidade", "un", "unit"]) || "unidade",
-      costCents: moneyToCents(get(row, ["custo", "custo unitario", "custo unitÃ¡rio", "valor", "preco", "preÃ§o"])),
-      wastePercent,
-      rowNumber: index + 2,
+      costCents: moneyToCents(get(row, ["custo unitario", "custo", "valor", "preco"])),
+      wastePercent: percentToNumber(get(row, ["perda", "perda %", "desperdicio"])),
+      rowNumber: Number(row.__rowNumber || index + 2),
       sheet,
       validationStatus: "PENDING_VALIDATION" as const
     }];
@@ -98,16 +125,18 @@ function mapMaterials(rows: Record<string, unknown>[], sheet: string) {
 function mapProcesses(rows: Record<string, unknown>[], sheet: string) {
   return rows.flatMap((row, index) => {
     if (isTemplateRow(row)) return [];
-    const name = get(row, ["processo", "nome", "descricao", "descriÃ§Ã£o", "servico", "serviÃ§o"]);
+    const name = get(row, ["processo", "nome", "descricao", "servico"]);
     if (!name) return [];
+    const code = get(row, ["codigo", "cod"]);
     return [{
       type: "process" as const,
-      key: name,
+      key: code || name,
       name,
+      code: code || undefined,
       processType: get(row, ["tipo", "origem"]) || "INTERNAL",
       unit: get(row, ["unidade", "un", "unit"]) || "hora",
-      costCents: moneyToCents(get(row, ["custo", "valor", "preco", "preÃ§o"])),
-      rowNumber: index + 2,
+      costCents: moneyToCents(get(row, ["custo unitario", "custo", "valor", "preco"])),
+      rowNumber: Number(row.__rowNumber || index + 2),
       sheet,
       validationStatus: "PENDING_VALIDATION" as const
     }];
@@ -117,16 +146,23 @@ function mapProcesses(rows: Record<string, unknown>[], sheet: string) {
 function mapProducts(rows: Record<string, unknown>[], sheet: string) {
   return rows.flatMap((row, index) => {
     if (isTemplateRow(row)) return [];
-    const name = get(row, ["produto", "nome", "descricao", "descriÃ§Ã£o"]);
+    const name = get(row, ["produto", "nome", "descricao"]);
     if (!name) return [];
+    const code = get(row, ["codigo", "cod"]);
     return [{
       type: "product" as const,
-      key: name,
+      key: code || name,
       name,
-      category: get(row, ["categoria", "grupo", "tipo"]) || "Grafica",
-      unit: get(row, ["unidade", "un", "unit"]) || "unidade",
-      description: get(row, ["observacao", "observaÃ§Ã£o", "descricao", "descriÃ§Ã£o"]) || null || undefined,
-      rowNumber: index + 2,
+      code: code || undefined,
+      category: get(row, ["categoria", "grupo", "tipo calculo", "tipo"]) || "Grafica",
+      unit: get(row, ["venda por", "unidade", "un", "unit"]) || "unidade",
+      description: get(row, ["observacao", "descricao"]) || undefined,
+      materialCode: get(row, ["material principal", "material", "material cod"]) || undefined,
+      processCode: get(row, ["processo principal", "processo", "processo cod"]) || undefined,
+      wastePercent: percentToNumber(get(row, ["perda %", "perda"])),
+      extraCostCents: moneyToCents(get(row, ["custo extra fixo", "extra", "custo extra"])),
+      laborHours: toNumber(get(row, ["horas mao de obra", "mao de obra"])),
+      rowNumber: Number(row.__rowNumber || index + 2),
       sheet,
       validationStatus: "PENDING_VALIDATION" as const
     }];

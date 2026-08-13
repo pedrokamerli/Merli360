@@ -29,22 +29,35 @@ export async function POST(request: NextRequest) {
     if (!validUntil) return NextResponse.json({ error: "Informe a validade do orcamento." }, { status: 400 });
     if (!description) return NextResponse.json({ error: "Inclua pelo menos um item no orcamento." }, { status: 400 });
 
+    const product = body.productId ? await db.graphicProduct.findFirst({
+      where: { id: String(body.productId), tenantId: user.tenantId },
+      include: {
+        components: { include: { material: true } },
+        processes: { include: { process: true } },
+        versions: { orderBy: { createdAt: "desc" }, take: 1 }
+      }
+    }) : null;
+    const productSnapshot = product?.versions?.[0]?.snapshot ? JSON.parse(product.versions[0].snapshot) : null;
+    const productMaterialCostCents = product?.components?.reduce((sum: number, item: any) => sum + Math.round((item.material?.currentCostCents || 0) * Number(item.quantity || 1)), 0) || 0;
+    const productProcessCostCents = product?.processes?.reduce((sum: number, item: any) => sum + Math.round((item.process?.costCents || 0) * Number(item.quantity || 1)), 0) || 0;
+    const productWastePercent = product?.components?.[0]?.wastePercent ?? productSnapshot?.wastePercent ?? 0;
+
     const settings = await getGraphicSettings(user.tenantId);
     const pricing = calculateGraphicPricing({
       quantity: Number(body.quantity || 1),
       width: body.width ? Number(body.width) : null,
       height: body.height ? Number(body.height) : null,
-      materialCostCents: cents(body.materialCost),
-      processCostCents: cents(body.processCost),
+      materialCostCents: body.materialCost ? cents(body.materialCost) : productMaterialCostCents,
+      processCostCents: body.processCost ? cents(body.processCost) : productProcessCostCents,
       outsourcedCostCents: cents(body.outsourcedCost),
       laborCostCents: cents(body.laborCost),
       freightCents: cents(body.freight),
       installationCents: cents(body.installation),
-      extraCostCents: cents(body.extraCost),
+      extraCostCents: body.extraCost ? cents(body.extraCost) : Number(productSnapshot?.extraCostCents || 0),
       discountCents: cents(body.discount),
       urgencyCents: cents(body.urgency),
       negotiatedPriceCents: body.negotiatedPrice ? cents(body.negotiatedPrice) : undefined,
-      wastePercent: Number(body.wastePercent || 0),
+      wastePercent: body.wastePercent ? Number(body.wastePercent || 0) : Number(productWastePercent || 0),
       ...settings
     });
 
@@ -100,9 +113,9 @@ export async function POST(request: NextRequest) {
       });
       await tx.graphicQuoteItemCost.createMany({
         data: [
-          { tenantId: user.tenantId, quoteItemId: item.id, type: "MATERIAL", description: "Materiais e perdas previstas", totalCostCents: pricing.materialBase + pricing.wasteCents, status: "PENDING_VALIDATION", createdById: user.id, updatedById: user.id },
-          { tenantId: user.tenantId, quoteItemId: item.id, type: "PROCESS", description: "Processos internos e terceirizados", totalCostCents: cents(body.processCost) + cents(body.outsourcedCost), status: "PENDING_VALIDATION", createdById: user.id, updatedById: user.id },
-          { tenantId: user.tenantId, quoteItemId: item.id, type: "OVERHEAD", description: "Mao de obra, fixos, impostos, taxas e comissao", totalCostCents: pricing.totalCostCents - pricing.materialBase - pricing.wasteCents - cents(body.processCost) - cents(body.outsourcedCost), status: "PENDING_VALIDATION", createdById: user.id, updatedById: user.id }
+          { tenantId: user.tenantId, quoteItemId: item.id, type: "MATERIAL", description: product?.components?.[0]?.material?.name || "Materiais e perdas previstas", materialId: product?.components?.[0]?.materialId || null, unitCostCents: body.materialCost ? cents(body.materialCost) : productMaterialCostCents, totalCostCents: pricing.materialBase + pricing.wasteCents, status: "PENDING_VALIDATION", createdById: user.id, updatedById: user.id },
+          { tenantId: user.tenantId, quoteItemId: item.id, type: "PROCESS", description: product?.processes?.[0]?.process?.name || "Processos internos e terceirizados", processId: product?.processes?.[0]?.processId || null, unitCostCents: body.processCost ? cents(body.processCost) : productProcessCostCents, totalCostCents: (body.processCost ? cents(body.processCost) : productProcessCostCents) + cents(body.outsourcedCost), status: "PENDING_VALIDATION", createdById: user.id, updatedById: user.id },
+          { tenantId: user.tenantId, quoteItemId: item.id, type: "OVERHEAD", description: "Mao de obra, fixos, impostos, taxas e comissao", totalCostCents: pricing.totalCostCents - pricing.materialBase - pricing.wasteCents - (body.processCost ? cents(body.processCost) : productProcessCostCents) - cents(body.outsourcedCost), status: "PENDING_VALIDATION", createdById: user.id, updatedById: user.id }
         ]
       });
       await tx.graphicQuoteVersion.create({ data: { tenantId: user.tenantId, quoteId: created.id, version: 1, snapshot: JSON.stringify({ quote: created, item, pricing }), createdById: user.id, updatedById: user.id } });

@@ -19,10 +19,18 @@ export type PricingInput = {
   minMarginPercent: number;
 };
 
+function dimensionToMeters(value?: number | null) {
+  const numeric = Number(value || 0);
+  if (!numeric) return 0;
+  return numeric > 20 ? numeric / 1000 : numeric;
+}
+
 export function calculateGraphicPricing(input: PricingInput) {
   const quantity = Math.max(1, Number(input.quantity || 1));
-  const area = input.width && input.height ? Number(input.width) * Number(input.height) : 0;
-  const materialBase = input.materialCostCents * Math.max(1, area || quantity);
+  const widthMeters = dimensionToMeters(input.width);
+  const heightMeters = dimensionToMeters(input.height);
+  const area = widthMeters && heightMeters ? widthMeters * heightMeters : 0;
+  const materialBase = input.materialCostCents * Math.max(1, area ? area * quantity : quantity);
   const wasteCents = Math.round(materialBase * (input.wastePercent / 100));
   const directCostCents = materialBase + wasteCents + input.processCostCents + input.outsourcedCostCents + input.laborCostCents + input.freightCents + input.installationCents + input.extraCostCents;
   const fixedCostCents = Math.round(directCostCents * (input.fixedCostRatePercent / 100));

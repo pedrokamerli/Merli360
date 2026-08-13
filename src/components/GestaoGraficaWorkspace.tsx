@@ -28,6 +28,7 @@ const graphicRoleOptions = [
 ];
 
 const opportunityInitial = {
+  clientId: "",
   clientName: "",
   phone: "",
   email: "",
@@ -127,6 +128,7 @@ export function GestaoGraficaWorkspace() {
   const receivableRows = data?.receivables || [];
   const postSaleRows = data?.postSales || [];
   const products = data?.products || [];
+  const clients = data?.clients || [];
   const materials = data?.materials || [];
   const processes = data?.processes || [];
   const settings = data?.settings || [];
@@ -209,6 +211,35 @@ export function GestaoGraficaWorkspace() {
     setQuoteForm((current) => ({ ...current, opportunityId: payload.item.id, clientId: payload.client.id, description: payload.item.productInterest || payload.item.title }));
     setMessage("Oportunidade criada. Agora voce pode gerar o orcamento sem redigitar o cliente.");
     await load();
+  }
+
+  function applyClientToOpportunity(clientId: string) {
+    const selected = clients.find((item: AnyRow) => item.id === clientId);
+    setOpportunityForm({
+      ...opportunityForm,
+      clientId,
+      clientName: selected?.name || "",
+      phone: selected?.phone || "",
+      email: selected?.email || "",
+      city: selected?.city || "",
+      state: selected?.state || ""
+    });
+    setQuoteForm((current) => ({ ...current, clientId }));
+  }
+
+  function applyProductToQuote(productId: string) {
+    const selected = products.find((item: AnyRow) => item.id === productId);
+    const component = selected?.components?.[0];
+    const productProcess = selected?.processes?.[0];
+    setQuoteForm({
+      ...quoteForm,
+      productId,
+      description: selected?.name || quoteForm.description,
+      materialCost: component?.material?.currentCostCents ? String(component.material.currentCostCents / 100) : quoteForm.materialCost,
+      processCost: productProcess?.process?.costCents ? String(productProcess.process.costCents / 100) : quoteForm.processCost,
+      wastePercent: component?.wastePercent !== undefined ? String(component.wastePercent) : quoteForm.wastePercent,
+      unit: selected?.unit || quoteForm.unit
+    });
   }
 
   async function updateOpportunity(id: string, payload: AnyRow, success = "Oportunidade atualizada.") {
@@ -712,10 +743,10 @@ export function GestaoGraficaWorkspace() {
             ]} onSave={(payload) => saveCatalog("stage", payload)} />
           ) : null}
         </div>
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
-          <CatalogList title="Produtos" rows={products} value={(item) => item.category || item.unit} />
-          <CatalogList title="Materiais" rows={materials} value={(item) => `${brl(item.currentCostCents)} | perda ${Number(item.wastePercent || 0).toFixed(1)}%`} />
-          <CatalogList title="Processos" rows={processes} value={(item) => `${brl(item.costCents)} | ${item.type}`} />
+        <div className="mt-4 grid gap-3 xl:grid-cols-3">
+          <CatalogList title="Produtos" type="product" rows={products} value={(item) => `${item.category || item.unit}${item.components?.[0]?.material?.name ? ` | ${item.components[0].material.name}` : ""}`} onSave={saveCatalog} />
+          <CatalogList title="Materiais" type="material" rows={materials} value={(item) => `${brl(item.currentCostCents)} | perda ${Number(item.wastePercent || 0).toFixed(1)}%`} onSave={saveCatalog} />
+          <CatalogList title="Processos" type="process" rows={processes} value={(item) => `${brl(item.costCents)} | ${item.type}`} onSave={saveCatalog} />
         </div>
       </section> : null}
 
@@ -726,6 +757,10 @@ export function GestaoGraficaWorkspace() {
             <h2 className="text-lg font-black text-slate-950">Cadastro rapido</h2>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
+            <select className={`${inputClass} sm:col-span-2`} value={opportunityForm.clientId} onChange={(event) => applyClientToOpportunity(event.target.value)}>
+              <option value="">Cliente novo ou selecione cliente do CRM</option>
+              {clients.map((item: AnyRow) => <option key={item.id} value={item.id}>{item.name}{item.city ? ` - ${item.city}` : ""}</option>)}
+            </select>
             <input className={inputClass} placeholder="Cliente" value={opportunityForm.clientName} onChange={(event) => setOpportunityForm({ ...opportunityForm, clientName: event.target.value })} />
             <input className={inputClass} placeholder="Telefone/WhatsApp" value={opportunityForm.phone} onChange={(event) => setOpportunityForm({ ...opportunityForm, phone: event.target.value })} />
             <input className={inputClass} placeholder="Email" value={opportunityForm.email} onChange={(event) => setOpportunityForm({ ...opportunityForm, email: event.target.value })} />
@@ -752,6 +787,10 @@ export function GestaoGraficaWorkspace() {
             <h2 className="text-lg font-black text-slate-950">Orcamento com custo</h2>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
+            <select className={`${inputClass} sm:col-span-3`} value={quoteForm.clientId} onChange={(event) => setQuoteForm({ ...quoteForm, clientId: event.target.value })}>
+              <option value="">Cliente do CRM para orcamento direto</option>
+              {clients.map((item: AnyRow) => <option key={item.id} value={item.id}>{item.name}{item.phone ? ` - ${item.phone}` : ""}</option>)}
+            </select>
             <select className={`${inputClass} sm:col-span-2`} value={quoteForm.opportunityId} onChange={(event) => {
               const selected = openOpportunities.find((item: AnyRow) => item.id === event.target.value);
               setQuoteForm({ ...quoteForm, opportunityId: event.target.value, clientId: selected?.clientId || "", description: selected?.productInterest || selected?.title || quoteForm.description });
@@ -762,10 +801,9 @@ export function GestaoGraficaWorkspace() {
             <input className={inputClass} type="date" value={quoteForm.validUntil} onChange={(event) => setQuoteForm({ ...quoteForm, validUntil: event.target.value })} />
             <input className={`${inputClass} sm:col-span-3`} placeholder="Descricao do item" value={quoteForm.description} onChange={(event) => setQuoteForm({ ...quoteForm, description: event.target.value })} />
             <select className={`${inputClass} sm:col-span-3`} value={quoteForm.productId} onChange={(event) => {
-              const selected = products.find((item: AnyRow) => item.id === event.target.value);
-              setQuoteForm({ ...quoteForm, productId: event.target.value, description: selected?.name || quoteForm.description });
+              applyProductToQuote(event.target.value);
             }}>
-              <option value="">Produto cadastrado opcional</option>
+              <option value="">Produto cadastrado da planilha</option>
               {products.map((item: AnyRow) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
             <input className={inputClass} placeholder="Qtd" value={quoteForm.quantity} onChange={(event) => setQuoteForm({ ...quoteForm, quantity: event.target.value })} />
@@ -869,8 +907,13 @@ export function GestaoGraficaWorkspace() {
                 <p className="mt-2 text-xs font-semibold text-slate-500">{item.approvalReason || "Dentro dos parametros atuais."}</p>
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   {item.shareToken ? (
-                    <a className="secondary-action inline-flex items-center justify-center gap-2 py-2" href={`/q/grafica/${item.shareToken}`} target="_blank">
-                      <FileText size={16} /> Ver link
+                    <a className="secondary-action inline-flex items-center justify-center gap-2 py-2" href={`/api/gestao-grafica/public-quotes/${item.shareToken}/pdf`} target="_blank">
+                      <FileText size={16} /> PDF cliente
+                    </a>
+                  ) : null}
+                  {item.shareToken && item.client?.phone ? (
+                    <a className="secondary-action inline-flex items-center justify-center gap-2 py-2" href={`https://wa.me/${String(item.client.phone).replace(/\D/g, "")}?text=${encodeURIComponent(`Ola, segue o orcamento #${item.number}: ${window.location.origin}/api/gestao-grafica/public-quotes/${item.shareToken}/pdf`)}`} target="_blank" rel="noreferrer">
+                      Enviar WhatsApp
                     </a>
                   ) : null}
                   {item.approvalRequired ? (
@@ -1048,20 +1091,64 @@ function CatalogBox({ title, fields, onSave }: { title: string; fields: { key: s
   );
 }
 
-function CatalogList({ title, rows, value }: { title: string; rows: AnyRow[]; value: (item: AnyRow) => string }) {
+function CatalogList({ title, type, rows, value, onSave }: { title: string; type: string; rows: AnyRow[]; value: (item: AnyRow) => string; onSave: (type: string, payload: AnyRow) => Promise<boolean> }) {
+  const [editingId, setEditingId] = useState("");
+  const [draft, setDraft] = useState<AnyRow>({});
+
+  function startEdit(item: AnyRow) {
+    setEditingId(item.id);
+    setDraft({
+      id: item.id,
+      name: item.name || "",
+      category: item.category || "",
+      unit: item.unit || "",
+      currentCost: item.currentCostCents !== undefined ? String(item.currentCostCents / 100) : "",
+      cost: item.costCents !== undefined ? String(item.costCents / 100) : "",
+      wastePercent: item.wastePercent !== undefined ? String(item.wastePercent) : "",
+      processType: item.type || "INTERNAL",
+      description: item.description || ""
+    });
+  }
+
+  async function saveEdit() {
+    const saved = await onSave(type, { ...draft, id: editingId });
+    if (saved) {
+      setEditingId("");
+      setDraft({});
+    }
+  }
+
   return (
     <div className="rounded-lg border border-slate-200 bg-white p-3">
-      <h3 className="font-black text-slate-950">{title}</h3>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="font-black text-slate-950">{title}</h3>
+        <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-black text-slate-600">{rows.length}</span>
+      </div>
       <div className="mt-3 space-y-2">
-        {rows.slice(0, 6).map((item) => (
+        {rows.slice(0, 18).map((item) => (
           <div key={item.id} className="rounded-md bg-slate-50 px-3 py-2">
-            <div className="flex items-start justify-between gap-2">
-              <p className="text-sm font-black text-slate-800">{item.name || item.key}</p>
-              <span className={`rounded-full px-2 py-1 text-[10px] font-black ${item.validationStatus === "VALIDATED" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                {item.validationStatus === "VALIDATED" ? "Validado" : "Validar"}
-              </span>
-            </div>
-            <p className="mt-1 text-xs font-semibold text-slate-500">{value(item)}</p>
+            {editingId === item.id ? (
+              <div className="grid gap-2">
+                <input className={inputClass} value={draft.name || ""} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
+                {type === "product" ? <input className={inputClass} placeholder="Categoria" value={draft.category || ""} onChange={(event) => setDraft({ ...draft, category: event.target.value })} /> : null}
+                <input className={inputClass} placeholder="Unidade" value={draft.unit || ""} onChange={(event) => setDraft({ ...draft, unit: event.target.value })} />
+                {type === "material" ? <input className={inputClass} placeholder="Custo R$" value={draft.currentCost || ""} onChange={(event) => setDraft({ ...draft, currentCost: event.target.value })} /> : null}
+                {type === "material" ? <input className={inputClass} placeholder="Perda %" value={draft.wastePercent || ""} onChange={(event) => setDraft({ ...draft, wastePercent: event.target.value })} /> : null}
+                {type === "process" ? <input className={inputClass} placeholder="Custo R$" value={draft.cost || ""} onChange={(event) => setDraft({ ...draft, cost: event.target.value })} /> : null}
+                <div className="grid grid-cols-2 gap-2">
+                  <button className="primary-action py-2 text-xs" type="button" onClick={saveEdit}>Salvar</button>
+                  <button className="secondary-action py-2 text-xs" type="button" onClick={() => setEditingId("")}>Cancelar</button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-black text-slate-800">{item.name || item.key}</p>
+                  <button className="rounded-md bg-white px-2 py-1 text-[10px] font-black text-slate-600" type="button" onClick={() => startEdit(item)}>Editar</button>
+                </div>
+                <p className="mt-1 text-xs font-semibold text-slate-500">{value(item)}</p>
+              </>
+            )}
           </div>
         ))}
         {!rows.length ? <p className="rounded-md bg-slate-50 p-3 text-xs font-bold text-slate-500">Nenhum cadastro ainda.</p> : null}
