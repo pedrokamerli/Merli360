@@ -10,14 +10,15 @@
 6. Se tiver uma planilha base, importe o Excel e confira a previa antes de confirmar.
 7. Vincule um produto cadastrado ao orcamento, se aplicavel.
 8. Confira custo, margem, desconto e alertas.
-9. Aprove o orcamento quando o cliente confirmar.
-10. O sistema cria pedido e ordem de producao automaticamente.
-11. Acompanhe producao, entrega e recebimento pelo painel.
-12. Na producao, marque checklist, inicie/conclua etapas, registre consumo e retrabalho quando houver.
-13. Anexe artes, provas, PDFs ou fotos diretamente na ordem de producao quando precisar registrar evidencia.
-14. Marque a entrega como entregue ou aceita.
-15. Registre recebimentos parciais ou totais.
-16. Feche o pos-venda com satisfacao de 1 a 5.
+9. Envie, duplique, recuse ou cancele o orcamento quando necessario.
+10. Aprove o orcamento quando o cliente confirmar.
+11. O sistema cria pedido e ordem de producao automaticamente.
+12. Acompanhe producao, entrega e recebimento pelo painel.
+13. Na producao, marque checklist, inicie/conclua etapas, registre consumo e retrabalho quando houver.
+14. Anexe artes, provas, PDFs ou fotos diretamente na ordem de producao quando precisar registrar evidencia.
+15. Marque a entrega como entregue ou aceita.
+16. Registre recebimentos parciais ou totais.
+17. Feche o pos-venda com satisfacao de 1 a 5.
 
 Quando um indicador aparecer como `Dados insuficientes`, significa que ainda nao ha registros confiaveis para o calculo.
 Quando um material ou processo aparecer como `Validar`, confira o custo real antes de usar como referencia comercial definitiva.

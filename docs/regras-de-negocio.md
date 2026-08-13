@@ -27,3 +27,6 @@
 - Retrabalho deve registrar motivo, impacto e acao corretiva.
 - Arquivos da grafica devem validar MIME, extensao, tamanho, tenant e registro vinculado antes de gravar.
 - Downloads de arquivos usam rota autenticada e filtrada por tenant.
+- Orcamento aprovado nao pode ser alterado por acoes de status.
+- Orcamento recusado ou cancelado exige motivo e registra nova versao historica.
+- Duplicar orcamento cria novo numero, novo token publico e snapshot proprio.

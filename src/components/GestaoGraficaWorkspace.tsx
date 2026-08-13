@@ -206,6 +206,25 @@ export function GestaoGraficaWorkspace() {
     await load();
   }
 
+  async function quoteAction(id: string, action: string) {
+    const reason = ["refuse", "cancel"].includes(action) ? prompt(action === "refuse" ? "Motivo da recusa" : "Motivo do cancelamento") || "" : "";
+    if (["refuse", "cancel"].includes(action) && !reason) return;
+    setSaving(true);
+    const response = await fetch("/api/gestao-grafica/quotes", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, action, reason })
+    });
+    const payload = await response.json();
+    setSaving(false);
+    if (!response.ok) {
+      setMessage(payload.error || "Nao foi possivel alterar o orcamento.");
+      return;
+    }
+    setMessage(action === "duplicate" ? `Orcamento duplicado: #${payload.item?.number}.` : "Orcamento atualizado.");
+    await load();
+  }
+
   async function updateProduction(id: string, status: string, extra: AnyRow = {}) {
     const note = status === "BLOCKED" ? prompt("Informe o impedimento da producao") || "" : "";
     setSaving(true);
@@ -542,6 +561,10 @@ export function GestaoGraficaWorkspace() {
                   <button className="secondary-action inline-flex items-center justify-center gap-2 py-2" onClick={() => approveQuote(item.id)} type="button">
                     <CheckCircle2 size={16} /> Aprovar
                   </button>
+                  <button className="secondary-action inline-flex items-center justify-center gap-2 py-2" onClick={() => quoteAction(item.id, "send")} type="button">Enviar</button>
+                  <button className="secondary-action inline-flex items-center justify-center gap-2 py-2" onClick={() => quoteAction(item.id, "duplicate")} type="button">Duplicar</button>
+                  <button className="secondary-action inline-flex items-center justify-center gap-2 py-2" onClick={() => quoteAction(item.id, "refuse")} type="button">Recusar</button>
+                  <button className="secondary-action inline-flex items-center justify-center gap-2 py-2" onClick={() => quoteAction(item.id, "cancel")} type="button">Cancelar</button>
                 </div>
               </article>
             )) : <p className="rounded-lg bg-slate-50 p-4 text-sm font-bold text-slate-500">Sem orcamentos pendentes.</p>}

@@ -4,6 +4,7 @@ import { requireApiUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { assertGraphicPermission, calculateGraphicPricing, cents, dateOrNull, ensureGraphicDefaults, getGraphicSettings, graphicProductionSteps } from "@/lib/graphic";
+import { nextQuoteVersion, validateQuoteStatusAction } from "@/lib/graphic-quotes";
 
 export const dynamic = "force-dynamic";
 
@@ -124,11 +125,107 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const user = await requireApiUser();
-    await assertGraphicPermission(user, "quote:approve");
     const body = await request.json();
+    const action = String(body.action || "approve");
+    await assertGraphicPermission(user, action === "approve" ? "quote:approve" : "quote:create");
     const id = String(body.id || "");
     if (!id) return NextResponse.json({ error: "Orcamento obrigatorio." }, { status: 400 });
     const db = prisma as any;
+
+    if (["send", "refuse", "cancel"].includes(action)) {
+      const statusMap: Record<string, string> = { send: "SENT", refuse: "REFUSED", cancel: "CANCELLED" };
+      const nextStatus = statusMap[action];
+      const reason = String(body.reason || body.note || "");
+      const result = await db.$transaction(async (tx: any) => {
+        const quote = await tx.graphicQuote.findFirst({ where: { id, tenantId: user.tenantId }, include: { versions: true, items: true } });
+        if (!quote) throw new Error("QUOTE_NOT_FOUND");
+        const validation = validateQuoteStatusAction(quote.status, nextStatus, reason);
+        if (validation) throw new Error(validation);
+        const updated = await tx.graphicQuote.update({
+          where: { id },
+          data: {
+            status: nextStatus,
+            notes: reason ? [quote.notes, `${nextStatus}: ${reason}`].filter(Boolean).join("\n") : quote.notes,
+            updatedById: user.id
+          }
+        });
+        await tx.graphicQuoteVersion.create({
+          data: { tenantId: user.tenantId, quoteId: id, version: nextQuoteVersion(quote.versions), snapshot: JSON.stringify({ action, status: nextStatus, reason, quote, items: quote.items }), createdById: user.id, updatedById: user.id }
+        });
+        return updated;
+      });
+      await audit({ tenantId: user.tenantId, userId: user.id, action: `graphic_${action}_quote`, entity: "GraphicQuote", entityId: id, request, metadata: { status: nextStatus } });
+      return NextResponse.json({ item: result });
+    }
+
+    if (action === "duplicate") {
+      const result = await db.$transaction(async (tx: any) => {
+        const quote = await tx.graphicQuote.findFirst({ where: { id, tenantId: user.tenantId }, include: { items: { include: { costs: true } } } });
+        if (!quote) throw new Error("QUOTE_NOT_FOUND");
+        const number = await nextNumber(tx, user.tenantId, "graphicQuote");
+        const validUntil = new Date();
+        validUntil.setDate(validUntil.getDate() + 7);
+        const created = await tx.graphicQuote.create({
+          data: {
+            tenantId: user.tenantId,
+            opportunityId: quote.opportunityId,
+            clientId: quote.clientId,
+            responsibleId: user.id,
+            number,
+            shareToken: crypto.randomBytes(24).toString("base64url"),
+            validUntil,
+            paymentTerms: quote.paymentTerms,
+            notes: `Duplicado do orcamento #${quote.number}.`,
+            subtotalCents: quote.subtotalCents,
+            discountCents: quote.discountCents,
+            urgencyCents: quote.urgencyCents,
+            freightCents: quote.freightCents,
+            installationCents: quote.installationCents,
+            totalCostCents: quote.totalCostCents,
+            totalPriceCents: quote.totalPriceCents,
+            minimumPriceCents: quote.minimumPriceCents,
+            marginPercent: quote.marginPercent,
+            markupPercent: quote.markupPercent,
+            approvalRequired: quote.approvalRequired,
+            approvalReason: quote.approvalReason,
+            createdById: user.id,
+            updatedById: user.id
+          }
+        });
+        for (const item of quote.items) {
+          const newItem = await tx.graphicQuoteItem.create({
+            data: {
+              tenantId: user.tenantId,
+              quoteId: created.id,
+              productId: item.productId,
+              description: item.description,
+              quantity: item.quantity,
+              width: item.width,
+              height: item.height,
+              area: item.area,
+              unit: item.unit,
+              deadlineDays: item.deadlineDays,
+              costCents: item.costCents,
+              priceCents: item.priceCents,
+              marginPercent: item.marginPercent,
+              costSnapshot: item.costSnapshot,
+              createdById: user.id,
+              updatedById: user.id
+            }
+          });
+          if (item.costs?.length) {
+            await tx.graphicQuoteItemCost.createMany({
+              data: item.costs.map((cost: any) => ({ tenantId: user.tenantId, quoteItemId: newItem.id, type: cost.type, description: cost.description, materialId: cost.materialId, processId: cost.processId, quantity: cost.quantity, unitCostCents: cost.unitCostCents, totalCostCents: cost.totalCostCents, status: cost.status, createdById: user.id, updatedById: user.id }))
+            });
+          }
+        }
+        await tx.graphicQuoteVersion.create({ data: { tenantId: user.tenantId, quoteId: created.id, version: 1, snapshot: JSON.stringify({ duplicatedFrom: quote.id, quote, items: quote.items }), createdById: user.id, updatedById: user.id } });
+        return tx.graphicQuote.findUnique({ where: { id: created.id }, include: { items: true, versions: true } });
+      });
+      await audit({ tenantId: user.tenantId, userId: user.id, action: "graphic_duplicate_quote", entity: "GraphicQuote", entityId: id, request, metadata: { newQuoteId: result?.id } });
+      return NextResponse.json({ item: result });
+    }
+
     const result = await db.$transaction(async (tx: any) => {
       const quote = await tx.graphicQuote.findFirst({ where: { id, tenantId: user.tenantId }, include: { items: true } });
       if (!quote) throw new Error("QUOTE_NOT_FOUND");
@@ -209,6 +306,6 @@ export async function PUT(request: NextRequest) {
       QUOTE_EXPIRED: "Orcamento vencido. Gere uma nova versao antes de aprovar."
     };
     const status = error?.message === "UNAUTHORIZED" ? 401 : error?.message === "FORBIDDEN_GRAPHIC_PERMISSION" || error?.message === "FORBIDDEN_MODULE" ? 403 : 400;
-    return NextResponse.json({ error: status === 403 ? "Seu perfil nao permite aprovar orcamentos." : messages[error?.message] || "Nao foi possivel aprovar o orcamento.", detail: process.env.NODE_ENV === "production" ? undefined : String(error?.message || error) }, { status });
+    return NextResponse.json({ error: status === 403 ? "Seu perfil nao permite alterar este orcamento." : messages[error?.message] || String(error?.message || "Nao foi possivel alterar o orcamento."), detail: process.env.NODE_ENV === "production" ? undefined : String(error?.message || error) }, { status });
   }
 }
