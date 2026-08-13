@@ -31,9 +31,12 @@ A chave do modulo e `gestao-grafica`. O super admin tambem tem acesso. Neste cic
 14. Historico de custo de material criado ao cadastrar ou alterar custo manualmente.
 15. Produto cadastrado pode ser vinculado ao item do orcamento, preservando o snapshot comercial no pedido aprovado.
 16. Acoes criticas protegidas no backend por perfil operacional da grafica.
+17. Producao com checklist obrigatorio para liberacao, etapas atualizaveis, consumo de material e registro de retrabalho.
 
 ## Dados insuficientes
 
 Indicadores financeiros, margem e custos exibem aviso quando a base nao possui dados suficientes ou quando custos foram importados/preenchidos como `PENDING_VALIDATION`.
 
 Custos zerados ou ainda nao conferidos entram como `PENDING_VALIDATION`. A validacao real dos valores deve ser feita pelo responsavel operacional antes de usar esses dados como base final de preco.
+
+Na producao, a liberacao exige checklist completo de arte, medidas, material, prazo e arquivos. Retrabalho exige motivo, impacto e acao corretiva.

@@ -21,3 +21,7 @@
 - Mudancas criticas registram auditoria.
 - Todas as consultas e gravacoes usam o `tenantId` do usuario autenticado.
 - Acesso ao modulo nao basta para executar acoes criticas; catalogo, configuracoes, aprovacao, producao, recebimento e pos-venda validam permissao operacional no backend.
+- Ordem de producao so pode ser liberada com checklist completo.
+- Etapas de producao registram evento com usuario, status, tempo e observacao quando informados.
+- Consumo de material deve ter descricao e quantidade positiva.
+- Retrabalho deve registrar motivo, impacto e acao corretiva.

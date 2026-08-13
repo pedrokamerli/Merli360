@@ -179,13 +179,13 @@ export function GestaoGraficaWorkspace() {
     await load();
   }
 
-  async function updateProduction(id: string, status: string) {
+  async function updateProduction(id: string, status: string, extra: AnyRow = {}) {
     const note = status === "BLOCKED" ? prompt("Informe o impedimento da producao") || "" : "";
     setSaving(true);
     const response = await fetch("/api/gestao-grafica/production", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, status, note })
+      body: JSON.stringify({ id, status, note, ...extra })
     });
     const payload = await response.json();
     setSaving(false);
@@ -195,6 +195,25 @@ export function GestaoGraficaWorkspace() {
     }
     setMessage("Producao atualizada.");
     await load();
+  }
+
+  async function updateProductionAction(id: string, payload: AnyRow, success = "Producao atualizada.") {
+    setSaving(true);
+    setMessage("");
+    const response = await fetch("/api/gestao-grafica/production", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, ...payload })
+    });
+    const result = await response.json();
+    setSaving(false);
+    if (!response.ok) {
+      setMessage(result.error || "Nao foi possivel atualizar a producao.");
+      return false;
+    }
+    setMessage(success);
+    await load();
+    return true;
   }
 
   async function updateDelivery(id: string, status: string) {
@@ -453,16 +472,7 @@ export function GestaoGraficaWorkspace() {
           </div>
           <div className="space-y-2">
             {productionRows.length ? productionRows.map((item: AnyRow) => (
-              <article key={item.id} className="rounded-lg border border-slate-200 bg-white p-3">
-                <h3 className="font-black text-slate-950">Pedido #{item.order?.number || "-"}</h3>
-                <p className="text-xs font-semibold text-slate-500">Status {item.status} | promessa {day(item.promisedAt)}</p>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <button className="secondary-action py-2 text-xs" onClick={() => updateProduction(item.id, "RELEASED")} type="button">Liberar</button>
-                  <button className="secondary-action py-2 text-xs" onClick={() => updateProduction(item.id, "IN_PROGRESS")} type="button">Iniciar</button>
-                  <button className="secondary-action py-2 text-xs" onClick={() => updateProduction(item.id, "BLOCKED")} type="button">Bloquear</button>
-                  <button className="primary-action py-2 text-xs" onClick={() => updateProduction(item.id, "COMPLETED")} type="button">Concluir</button>
-                </div>
-              </article>
+              <ProductionCard key={item.id} item={item} materials={materials} onStatus={updateProduction} onAction={updateProductionAction} />
             )) : <p className="rounded-lg bg-slate-50 p-4 text-sm font-bold text-slate-500">Nenhuma ordem de producao.</p>}
           </div>
         </div>
@@ -593,5 +603,101 @@ function CatalogList({ title, rows, value }: { title: string; rows: AnyRow[]; va
         {!rows.length ? <p className="rounded-md bg-slate-50 p-3 text-xs font-bold text-slate-500">Nenhum cadastro ainda.</p> : null}
       </div>
     </div>
+  );
+}
+
+function parseChecklist(value: unknown) {
+  if (!value) return {} as Record<string, boolean>;
+  if (typeof value === "object") return value as Record<string, boolean>;
+  try {
+    return JSON.parse(String(value)) as Record<string, boolean>;
+  } catch {
+    return {} as Record<string, boolean>;
+  }
+}
+
+function ProductionCard({ item, materials, onStatus, onAction }: { item: AnyRow; materials: AnyRow[]; onStatus: (id: string, status: string, extra?: AnyRow) => Promise<void>; onAction: (id: string, payload: AnyRow, success?: string) => Promise<boolean> }) {
+  const checklist = parseChecklist(item.checklist);
+  const checklistItems = [
+    ["arte", "Arte"],
+    ["medidas", "Medidas"],
+    ["material", "Material"],
+    ["prazo", "Prazo"],
+    ["arquivos", "Arquivos"]
+  ];
+  const missing = checklistItems.filter(([key]) => !checklist[key]).length;
+
+  async function toggleChecklist(key: string, value: boolean) {
+    await onAction(item.id, { action: "checklist", checklist: { [key]: value } }, "Checklist atualizado.");
+  }
+
+  async function updateStep(step: AnyRow, stepStatus: string) {
+    const minutes = stepStatus === "COMPLETED" ? prompt("Tempo realizado em minutos", String(step.actualMinutes || "")) || "" : "";
+    await onAction(item.id, { action: "step", stepId: step.id, stepStatus, minutes }, "Etapa atualizada.");
+  }
+
+  async function registerConsumption() {
+    const description = prompt("Material consumido", materials[0]?.name || "");
+    if (!description) return;
+    const quantity = prompt("Quantidade consumida", "1");
+    if (!quantity) return;
+    const wasteQuantity = prompt("Perda registrada", "0") || "0";
+    const selected = materials.find((material) => material.name.toLowerCase() === description.toLowerCase());
+    await onAction(item.id, { action: "consumption", materialId: selected?.id, description, quantity, wasteQuantity }, "Consumo registrado.");
+  }
+
+  async function registerRework() {
+    const reason = prompt("Motivo do retrabalho");
+    if (!reason) return;
+    const impact = prompt("Impacto do retrabalho", "Prazo/custo/qualidade afetado") || "";
+    const correctiveAction = prompt("Acao corretiva", "Corrigir e revisar antes da entrega") || "";
+    await onAction(item.id, { action: "rework", reason, impact, correctiveAction }, "Retrabalho registrado.");
+  }
+
+  return (
+    <article className="rounded-lg border border-slate-200 bg-white p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h3 className="font-black text-slate-950">Pedido #{item.order?.number || "-"}</h3>
+          <p className="text-xs font-semibold text-slate-500">Status {item.status} | promessa {day(item.promisedAt)}</p>
+        </div>
+        <span className={missing ? "rounded-full bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700" : "rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700"}>
+          {missing ? `${missing} pend.` : "Checklist ok"}
+        </span>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        {checklistItems.map(([key, label]) => (
+          <label key={key} className="flex items-center gap-2 rounded-md bg-slate-50 px-2 py-2 text-xs font-bold text-slate-600">
+            <input type="checkbox" checked={Boolean(checklist[key])} onChange={(event) => toggleChecklist(key, event.target.checked)} />
+            {label}
+          </label>
+        ))}
+      </div>
+
+      <div className="mt-3 space-y-2">
+        {(item.steps || []).slice(0, 4).map((step: AnyRow) => (
+          <div key={step.id} className="rounded-md border border-slate-100 p-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs font-black text-slate-700">{step.name}</p>
+              <span className="text-[10px] font-black text-slate-400">{step.status}</span>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <button className="secondary-action py-2 text-xs" onClick={() => updateStep(step, "IN_PROGRESS")} type="button">Iniciar etapa</button>
+              <button className="secondary-action py-2 text-xs" onClick={() => updateStep(step, "COMPLETED")} type="button">Concluir etapa</button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <button className="secondary-action py-2 text-xs" onClick={() => onStatus(item.id, "RELEASED")} type="button">Liberar</button>
+        <button className="secondary-action py-2 text-xs" onClick={() => onStatus(item.id, "IN_PROGRESS")} type="button">Iniciar</button>
+        <button className="secondary-action py-2 text-xs" onClick={registerConsumption} type="button">Consumo</button>
+        <button className="secondary-action py-2 text-xs" onClick={registerRework} type="button">Retrabalho</button>
+        <button className="secondary-action py-2 text-xs" onClick={() => onStatus(item.id, "BLOCKED")} type="button">Bloquear</button>
+        <button className="primary-action py-2 text-xs" onClick={() => onStatus(item.id, "COMPLETED")} type="button">Concluir</button>
+      </div>
+    </article>
   );
 }
