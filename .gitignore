@@ -1,0 +1,38 @@
+node_modules
+.next
+dist
+coverage
+.env
+.env.local
+prisma/dev.db
+prisma/dev.db-journal
+*.log
+backups/*.db
+
+# production secrets
+.env*
+!.env.example
+
+# runtime data and uploads
+uploads/
+public/uploads/
+src/app/logs/
+
+# backups and archives
+backups/
+*.tar.gz
+*.sql
+
+# generated and cache
+.next/
+node_modules/
+dist/
+build/
+coverage/
+*.log
+
+# Codex/runtime workspace artifacts
+.codex/
+.agents/
+.codex-remote-attachments/
+.gitignore.before-git-migration-*

@@ -1,0 +1,21 @@
+services:
+  merli360_app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: merli360_app
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: file:/app/data/dev.db
+      BASIC_AUTH_ENABLED: "true"
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER:-pedro}
+      BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD:-troque-esta-senha}
+    ports:
+      - "127.0.0.1:3100:3000"
+    volumes:
+      - merli360_data:/app/data
+
+volumes:
+  merli360_data:

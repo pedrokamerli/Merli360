@@ -1,0 +1,50 @@
+services:
+  merli360_postgres:
+    image: postgres:16-alpine
+    container_name: merli360_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-merli360}
+      POSTGRES_USER: ${POSTGRES_USER:-merli360}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-troque-esta-senha-postgres}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - merli360_postgres_data:/var/lib/postgresql/data
+
+  merli360_app:
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
+    container_name: merli360_app
+    restart: unless-stopped
+    depends_on:
+      merli360_postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-merli360}:${POSTGRES_PASSWORD:-troque-esta-senha-postgres}@merli360_postgres:5432/${POSTGRES_DB:-merli360}?schema=public
+      BASIC_AUTH_ENABLED: "true"
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER:-pedro}
+      BASIC_AUTH_PASSWORD: ${BASIC_AUTH_PASSWORD:-troque-esta-senha}
+      AUTH_SECRET: ${AUTH_SECRET:-troque-este-secret}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${NEXT_PUBLIC_VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:pedromerli@hotmail.com}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-flash-latest}
+    ports:
+      - "127.0.0.1:3100:3000"
+    volumes:
+      - merli360_uploads:/app/data/uploads
+
+volumes:
+  merli360_postgres_data:
+  merli360_uploads:

@@ -1,0 +1,52 @@
+{
+  "name": "merli360",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "start:prod": "next start -p 3001",
+    "lint": "next lint",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:seed": "prisma db seed",
+    "db:init": "python scripts/init-db.py",
+    "db:postgres-schema": "node scripts/create-postgres-schema.js",
+    "db:export-json": "node scripts/export-sqlite-json.js",
+    "db:import-json": "node scripts/import-json-to-postgres.js",
+    "db:reset-merli": "node scripts/reset-merli-operational-data.js",
+    "push:keys": "node scripts/generate-vapid.js"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.11.1",
+    "@types/web-push": "^3.6.4",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "lucide-react": "^0.468.0",
+    "next": "^15.3.5",
+    "papaparse": "^5.5.3",
+    "pdf2json": "^4.0.3",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "recharts": "^3.0.2",
+    "web-push": "^3.6.7",
+    "xlsx": "^0.18.5",
+    "zod": "^3.25.74"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/papaparse": "^5.3.15",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "prisma": "^6.11.1",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  }
+}
