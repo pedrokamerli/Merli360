@@ -6,6 +6,14 @@ import { MetricCard } from "@/components/MetricCard";
 
 type AnyRow = Record<string, any>;
 type GraphicTab = "dashboard" | "base" | "commercial" | "production" | "delivery" | "finance" | "postSale";
+type GraphicTabMeta = {
+  key: GraphicTab;
+  label: string;
+  count: string;
+  title: string;
+  description: string;
+  action: string;
+};
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const brl = (cents: number) => money.format((cents || 0) / 100);
@@ -86,7 +94,7 @@ export function GestaoGraficaWorkspace() {
   const [importPreview, setImportPreview] = useState<AnyRow | null>(null);
   const [opportunityForm, setOpportunityForm] = useState(opportunityInitial);
   const [quoteForm, setQuoteForm] = useState({ ...quoteInitial, validUntil: todayPlus(7) });
-  const [activeTab, setActiveTab] = useState<GraphicTab>("dashboard");
+  const [activeTab, setActiveTab] = useState<GraphicTab>("commercial");
 
   async function load() {
     setLoading(true);
@@ -127,15 +135,16 @@ export function GestaoGraficaWorkspace() {
   const settingMap = Object.fromEntries(settings.map((item: AnyRow) => [item.key, item.value]));
   const activeStages = stages.length ? stages : [{ name: "OPEN" }, { name: "QUOTE_CREATED" }, { name: "WON" }, { name: "LOST" }];
   const pipelineStages = activeStages.map((stage: AnyRow) => ({ ...stage, items: (data?.opportunities || []).filter((item: AnyRow) => item.status === stage.name) }));
-  const tabs: { key: GraphicTab; label: string; count: string }[] = [
-    { key: "dashboard", label: "Painel", count: String(metrics.qualityAlerts || 0) },
-    { key: "commercial", label: "Comercial", count: String(openOpportunities.length) },
-    { key: "production", label: "Producao", count: String(productionRows.length) },
-    { key: "delivery", label: "Entregas", count: String(deliveryRows.length) },
-    { key: "finance", label: "Recebimentos", count: String(receivableRows.filter((item: AnyRow) => item.status !== "PAID").length) },
-    { key: "postSale", label: "Pos-venda", count: String(postSaleRows.filter((item: AnyRow) => item.status === "OPEN").length) },
-    { key: "base", label: "Base", count: String(products.length + materials.length + processes.length) }
+  const tabs: GraphicTabMeta[] = [
+    { key: "dashboard", label: "Painel", count: String(metrics.qualityAlerts || 0), title: "Painel operacional", description: "Indicadores, alertas e relatorios para decidir o que atacar primeiro.", action: "Ver indicadores" },
+    { key: "commercial", label: "Comercial", count: String(openOpportunities.length), title: "Comercial", description: "Cadastre clientes de qualquer canal, crie oportunidades, gere orcamentos e mova o funil.", action: "Atender cliente" },
+    { key: "production", label: "Producao", count: String(productionRows.length), title: "Producao", description: "Acompanhe ordens, checklist, materiais, tempos, bloqueios e evidencias.", action: "Executar ordem" },
+    { key: "delivery", label: "Entregas", count: String(deliveryRows.length), title: "Entregas", description: "Agende, comprove, conclua e registre aceite ou reclamacao do cliente.", action: "Controlar entrega" },
+    { key: "finance", label: "Recebimentos", count: String(receivableRows.filter((item: AnyRow) => item.status !== "PAID").length), title: "Recebimentos", description: "Veja vendido, faturado, recebido e registre baixas das parcelas abertas.", action: "Baixar parcela" },
+    { key: "postSale", label: "Pos-venda", count: String(postSaleRows.filter((item: AnyRow) => item.status === "OPEN").length), title: "Pos-venda", description: "Feche o atendimento depois da entrega e gere nova venda ou tarefa quando fizer sentido.", action: "Registrar contato" },
+    { key: "base", label: "Base", count: String(products.length + materials.length + processes.length), title: "Base de custos", description: "Importe planilhas e mantenha produtos, materiais, processos, parametros, funil e papeis.", action: "Configurar base" }
   ];
+  const activeTabMeta = tabs.find((tab) => tab.key === activeTab) || tabs[0];
 
   async function saveCatalog(type: string, payload: AnyRow) {
     setSaving(true);
@@ -457,12 +466,12 @@ export function GestaoGraficaWorkspace() {
   }
 
   return (
-    <div className="space-y-5">
-      <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
+    <div className="mx-auto max-w-screen-2xl space-y-5">
+      <header className="surface-panel flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between">
+        <div className="min-w-0">
           <p className="eyebrow">Modulo nativo</p>
           <h1 className="text-2xl font-black tracking-tight text-slate-950 md:text-3xl">Gestao da Grafica</h1>
-          <p className="mt-1 text-sm font-medium text-slate-500">Contato, oportunidade, orcamento, pedido, producao, entrega e recebimento em um fluxo unico.</p>
+          <p className="mt-1 max-w-3xl text-sm font-medium text-slate-500">Fluxo operacional da grafica: cliente, orcamento, producao, entrega, recebimento e pos-venda, cada etapa em sua propria aba.</p>
         </div>
         <button className="secondary-action inline-flex items-center gap-2 px-4 py-2" onClick={load} type="button">
           <RefreshCw size={16} /> Atualizar
@@ -472,19 +481,46 @@ export function GestaoGraficaWorkspace() {
       {message ? <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{message}</div> : null}
       {loading ? <div className="surface-panel flex items-center gap-2 p-5 text-sm font-bold text-slate-600"><Loader2 className="animate-spin" size={18} /> Carregando modulo...</div> : null}
 
-      <nav className="surface-panel sticky top-2 z-10 flex gap-2 overflow-x-auto p-2">
+      <nav className="surface-panel sticky top-2 z-10 grid grid-cols-2 gap-2 p-2 sm:flex sm:overflow-x-auto">
         {tabs.map((tab) => (
           <button
             key={tab.key}
-            className={`inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-xs font-black transition ${activeTab === tab.key ? "bg-slate-950 text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}
+            className={`flex min-h-[56px] shrink-0 items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition sm:min-w-[158px] ${activeTab === tab.key ? "border-slate-950 bg-slate-950 text-white shadow-sm" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"}`}
             onClick={() => setActiveTab(tab.key)}
             type="button"
           >
-            {tab.label}
-            <span className={`rounded-full px-2 py-0.5 text-[10px] ${activeTab === tab.key ? "bg-white/15 text-white" : "bg-slate-100 text-slate-600"}`}>{tab.count}</span>
+            <span className="min-w-0">
+              <span className="block truncate text-xs font-black">{tab.label}</span>
+              <span className={`mt-0.5 block truncate text-[10px] font-bold ${activeTab === tab.key ? "text-white/70" : "text-slate-400"}`}>{tab.action}</span>
+            </span>
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${activeTab === tab.key ? "bg-white/15 text-white" : "bg-slate-100 text-slate-600"}`}>{tab.count}</span>
           </button>
         ))}
       </nav>
+
+      <section className="surface-panel p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="eyebrow">Area ativa</p>
+            <h2 className="text-xl font-black text-slate-950">{activeTabMeta.title}</h2>
+            <p className="mt-1 max-w-3xl text-sm font-semibold text-slate-500">{activeTabMeta.description}</p>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-center text-xs font-black sm:w-[360px]">
+            <button className="rounded-md border border-slate-200 bg-white px-2 py-2 text-slate-600" type="button" onClick={() => setActiveTab("commercial")}>
+              {openOpportunities.length}
+              <span className="block text-[10px] font-bold text-slate-400">vendas</span>
+            </button>
+            <button className="rounded-md border border-slate-200 bg-white px-2 py-2 text-slate-600" type="button" onClick={() => setActiveTab("production")}>
+              {productionRows.length}
+              <span className="block text-[10px] font-bold text-slate-400">producao</span>
+            </button>
+            <button className="rounded-md border border-slate-200 bg-white px-2 py-2 text-slate-600" type="button" onClick={() => setActiveTab("finance")}>
+              {receivableRows.filter((item: AnyRow) => item.status !== "PAID").length}
+              <span className="block text-[10px] font-bold text-slate-400">a receber</span>
+            </button>
+          </div>
+        </div>
+      </section>
 
       {activeTab === "dashboard" ? <section className="surface-panel p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
