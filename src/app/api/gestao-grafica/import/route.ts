@@ -95,7 +95,8 @@ export async function POST(request: NextRequest) {
         if (process) {
           await tx.graphicProductProcess.create({ data: { tenantId: user.tenantId, productId: product.id, processId: process.id, quantity: Math.max(1, item.laborHours || 1), createdById: user.id, updatedById: user.id } });
         }
-        await tx.graphicProductVersion.create({ data: { tenantId: user.tenantId, productId: product.id, snapshot: JSON.stringify(item), createdById: user.id, updatedById: user.id } }).catch(() => null);
+        const version = await tx.graphicProductVersion.count({ where: { tenantId: user.tenantId, productId: product.id } });
+        await tx.graphicProductVersion.create({ data: { tenantId: user.tenantId, productId: product.id, version: version + 1, snapshot: JSON.stringify(item), createdById: user.id, updatedById: user.id } });
       }
 
       return counters;

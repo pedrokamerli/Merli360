@@ -105,7 +105,8 @@ const result = await db.$transaction(async (tx) => {
     const process = processMap.get(item.processCode);
     if (material) await tx.graphicProductComponent.create({ data: { tenantId: tenant.id, productId: product.id, materialId: material.id, quantity: 1, wastePercent: item.wastePercent || material.wastePercent || 0, createdById: userId, updatedById: userId } });
     if (process) await tx.graphicProductProcess.create({ data: { tenantId: tenant.id, productId: product.id, processId: process.id, quantity: Math.max(1, item.laborHours || 1), createdById: userId, updatedById: userId } });
-    await tx.graphicProductVersion.create({ data: { tenantId: tenant.id, productId: product.id, snapshot: JSON.stringify(item), createdById: userId, updatedById: userId } }).catch(() => null);
+    const version = await tx.graphicProductVersion.count({ where: { tenantId: tenant.id, productId: product.id } });
+    await tx.graphicProductVersion.create({ data: { tenantId: tenant.id, productId: product.id, version: version + 1, snapshot: JSON.stringify(item), createdById: userId, updatedById: userId } });
   }
   return counters;
 });
