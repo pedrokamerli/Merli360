@@ -177,6 +177,45 @@ export function GestaoGraficaWorkspace() {
     await load();
   }
 
+  async function updateOpportunity(id: string, payload: AnyRow, success = "Oportunidade atualizada.") {
+    setSaving(true);
+    setMessage("");
+    const response = await fetch("/api/gestao-grafica/opportunities", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, ...payload })
+    });
+    const result = await response.json();
+    setSaving(false);
+    if (!response.ok) {
+      setMessage(result.error || "Nao foi possivel atualizar a oportunidade.");
+      return false;
+    }
+    setMessage(success);
+    await load();
+    return true;
+  }
+
+  async function recordOpportunityContact(item: AnyRow) {
+    const note = prompt("O que aconteceu no contato?", item.nextAction || "");
+    if (!note) return;
+    await updateOpportunity(item.id, { note, channel: "Atendimento", result: "Contato registrado" }, "Contato registrado na oportunidade.");
+  }
+
+  async function rescheduleOpportunity(item: AnyRow) {
+    const nextAction = prompt("Proximo passo", item.nextAction || "Retornar cliente");
+    if (!nextAction) return;
+    const nextFollowUp = prompt("Data do retorno (AAAA-MM-DD)", String(item.nextFollowUp || "").slice(0, 10) || todayPlus(1));
+    if (!nextFollowUp) return;
+    await updateOpportunity(item.id, { nextAction, nextFollowUp, note: `Retorno reagendado: ${nextAction}` }, "Retorno reagendado e tarefa criada.");
+  }
+
+  async function loseOpportunity(item: AnyRow) {
+    const lossReason = prompt("Motivo da perda");
+    if (!lossReason) return;
+    await updateOpportunity(item.id, { status: "LOST", lossReason, note: lossReason, result: "Oportunidade perdida" }, "Oportunidade marcada como perdida.");
+  }
+
   async function createQuote(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
@@ -576,6 +615,19 @@ export function GestaoGraficaWorkspace() {
                   {item.qualityAlert ? <AlertTriangle className="text-amber-500" size={18} /> : null}
                 </div>
                 <p className="mt-2 text-sm text-slate-600">{item.nextAction || "Sem proximo passo"} em {day(item.nextFollowUp)}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {(item.tasks || []).slice(0, 2).map((task: AnyRow) => (
+                    <span key={task.id} className="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700">{task.title} | {day(task.dueDate)}</span>
+                  ))}
+                </div>
+                {(item.activities || []).length ? <p className="mt-2 text-xs font-semibold text-slate-500">Ultimo contato: {item.activities[0].result || item.activities[0].note || "registrado"}</p> : null}
+                {item.status !== "LOST" ? (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                    <button className="secondary-action px-3 py-2 text-xs" type="button" onClick={() => recordOpportunityContact(item)}>Contato</button>
+                    <button className="secondary-action px-3 py-2 text-xs" type="button" onClick={() => rescheduleOpportunity(item)}>Reagendar</button>
+                    <button className="secondary-action px-3 py-2 text-xs text-rose-700" type="button" onClick={() => loseOpportunity(item)}>Perder</button>
+                  </div>
+                ) : <p className="mt-2 rounded-md bg-rose-50 p-2 text-xs font-bold text-rose-700">Perdida: {item.lossReason || "motivo nao informado"}</p>}
               </article>
             )) : <p className="rounded-lg bg-slate-50 p-4 text-sm font-bold text-slate-500">Nenhuma oportunidade encontrada.</p>}
           </div>

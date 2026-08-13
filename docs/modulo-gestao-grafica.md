@@ -37,6 +37,7 @@ A chave do modulo e `gestao-grafica`. O super admin tambem tem acesso. Neste cic
 20. Orcamentos podem ser enviados, recusados, cancelados com motivo e duplicados com novo numero.
 21. Indicadores do painel informam formula, periodo, fonte, criterio, limitacao e qualidade do dado.
 22. Relatorios CSV exportam oportunidades, orcamentos, pedidos, producao, recebimentos e auditoria com permissao de backend.
+23. Oportunidades registram contato, reagendamento de retorno, tarefa aberta e perda com motivo obrigatorio.
 
 ## Dados insuficientes
 
@@ -49,6 +50,8 @@ Custos zerados ou ainda nao conferidos entram como `PENDING_VALIDATION`. A valid
 Na producao, a liberacao exige checklist completo de arte, medidas, material, prazo e arquivos. Retrabalho exige motivo, impacto e acao corretiva.
 
 Orcamentos aprovados nao podem voltar de status. Recusa e cancelamento exigem motivo e geram versao historica.
+
+Oportunidades abertas devem manter proximo passo ou data de retorno. Quando houver proximo passo com data, o sistema cria tarefa operacional vinculada. Oportunidade perdida exige motivo e nao reabre no mesmo registro; para retomar, crie nova oportunidade preservando o historico.
 
 ## Relatorios e exportacao
 

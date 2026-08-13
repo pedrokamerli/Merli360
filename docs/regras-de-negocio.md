@@ -3,6 +3,9 @@
 ## Gestao da Grafica
 
 - Toda oportunidade aberta deve possuir proximo passo ou data de retorno.
+- Proximo passo com data deve gerar tarefa aberta vinculada a oportunidade.
+- Oportunidade perdida exige motivo e nao deve ser reaberta no mesmo registro.
+- Interacoes comerciais relevantes da oportunidade devem criar atividade historica.
 - Todo orcamento deve possuir cliente, responsavel, validade e pelo menos um item.
 - Desconto acima do limite do tenant exige aprovacao.
 - Preco abaixo da margem minima exige aprovacao.
