@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Banknote, CheckCircle2, ClipboardList, Factory, FileText, Loader2, PackageCheck, Plus, RefreshCw, Search, Star } from "lucide-react";
+import { AlertTriangle, Banknote, CheckCircle2, ClipboardList, Factory, FileText, Loader2, PackageCheck, Plus, RefreshCw, Search, Settings, Star } from "lucide-react";
 import { MetricCard } from "@/components/MetricCard";
 
 type AnyRow = Record<string, any>;
@@ -27,6 +27,7 @@ const opportunityInitial = {
 const quoteInitial = {
   opportunityId: "",
   clientId: "",
+  productId: "",
   description: "",
   quantity: "1",
   width: "",
@@ -94,6 +95,30 @@ export function GestaoGraficaWorkspace() {
   const deliveryRows = data?.deliveries || [];
   const receivableRows = data?.receivables || [];
   const postSaleRows = data?.postSales || [];
+  const products = data?.products || [];
+  const materials = data?.materials || [];
+  const processes = data?.processes || [];
+  const settings = data?.settings || [];
+  const settingMap = Object.fromEntries(settings.map((item: AnyRow) => [item.key, item.value]));
+
+  async function saveCatalog(type: string, payload: AnyRow) {
+    setSaving(true);
+    setMessage("");
+    const response = await fetch("/api/gestao-grafica/catalog", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type, ...payload })
+    });
+    const result = await response.json();
+    setSaving(false);
+    if (!response.ok) {
+      setMessage(result.error || "Nao foi possivel salvar o cadastro.");
+      return false;
+    }
+    setMessage("Cadastro grafico salvo.");
+    await load();
+    return true;
+  }
 
   async function createOpportunity(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -255,6 +280,54 @@ export function GestaoGraficaWorkspace() {
         <MetricCard label="Recebimento pendente" value={brl(metrics.openReceivablesCents || 0)} hint={metrics.dataQuality || "valor aberto"} tone={metrics.overdueReceivablesCents ? "danger" : "warn"} />
       </section>
 
+      <section className="surface-panel p-4">
+        <div className="mb-4 flex items-center gap-2">
+          <Settings size={18} className="text-emerald-600" />
+          <h2 className="text-lg font-black text-slate-950">Produtos, custos e parametros</h2>
+        </div>
+        <div className="grid gap-4 xl:grid-cols-4">
+          <CatalogBox title="Produto" fields={[
+            { key: "name", placeholder: "Produto" },
+            { key: "category", placeholder: "Categoria", value: "Comunicacao visual" },
+            { key: "unit", placeholder: "Unidade", value: "unidade" }
+          ]} onSave={(payload) => saveCatalog("product", payload)} />
+          <CatalogBox title="Material" fields={[
+            { key: "name", placeholder: "Material" },
+            { key: "unit", placeholder: "Unidade", value: "m2" },
+            { key: "currentCost", placeholder: "Custo R$" },
+            { key: "wastePercent", placeholder: "Perda %", value: "8" }
+          ]} onSave={(payload) => saveCatalog("material", payload)} />
+          <CatalogBox title="Processo" fields={[
+            { key: "name", placeholder: "Processo" },
+            { key: "processType", placeholder: "Tipo", value: "INTERNAL" },
+            { key: "unit", placeholder: "Unidade", value: "hora" },
+            { key: "cost", placeholder: "Custo R$" }
+          ]} onSave={(payload) => saveCatalog("process", payload)} />
+          <div className="rounded-lg border border-slate-200 bg-white p-3">
+            <h3 className="font-black text-slate-950">Parametros</h3>
+            <div className="mt-3 grid gap-2">
+              {[
+                ["minMarginPercent", "Margem minima %"],
+                ["maxDiscountPercent", "Desconto maximo %"],
+                ["fixedCostRatePercent", "Custo fixo %"],
+                ["taxRatePercent", "Impostos %"],
+                ["commissionPercent", "Comissao %"]
+              ].map(([key, label]) => (
+                <label key={key} className="grid grid-cols-[1fr_84px] items-center gap-2 text-xs font-black text-slate-500">
+                  {label}
+                  <input className={inputClass} defaultValue={settingMap[key] || ""} onBlur={(event) => event.target.value.trim() && saveCatalog("setting", { key, value: event.target.value })} />
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <CatalogList title="Produtos" rows={products} value={(item) => item.category || item.unit} />
+          <CatalogList title="Materiais" rows={materials} value={(item) => `${brl(item.currentCostCents)} | perda ${Number(item.wastePercent || 0).toFixed(1)}%`} />
+          <CatalogList title="Processos" rows={processes} value={(item) => `${brl(item.costCents)} | ${item.type}`} />
+        </div>
+      </section>
+
       <section className="grid gap-4 xl:grid-cols-[.95fr_1.05fr]">
         <form className="surface-panel p-4" onSubmit={createOpportunity}>
           <div className="mb-4 flex items-center gap-2">
@@ -294,6 +367,13 @@ export function GestaoGraficaWorkspace() {
             </select>
             <input className={inputClass} type="date" value={quoteForm.validUntil} onChange={(event) => setQuoteForm({ ...quoteForm, validUntil: event.target.value })} />
             <input className={`${inputClass} sm:col-span-3`} placeholder="Descricao do item" value={quoteForm.description} onChange={(event) => setQuoteForm({ ...quoteForm, description: event.target.value })} />
+            <select className={`${inputClass} sm:col-span-3`} value={quoteForm.productId} onChange={(event) => {
+              const selected = products.find((item: AnyRow) => item.id === event.target.value);
+              setQuoteForm({ ...quoteForm, productId: event.target.value, description: selected?.name || quoteForm.description });
+            }}>
+              <option value="">Produto cadastrado opcional</option>
+              {products.map((item: AnyRow) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
             <input className={inputClass} placeholder="Qtd" value={quoteForm.quantity} onChange={(event) => setQuoteForm({ ...quoteForm, quantity: event.target.value })} />
             <input className={inputClass} placeholder="Largura" value={quoteForm.width} onChange={(event) => setQuoteForm({ ...quoteForm, width: event.target.value })} />
             <input className={inputClass} placeholder="Altura" value={quoteForm.height} onChange={(event) => setQuoteForm({ ...quoteForm, height: event.target.value })} />
@@ -460,6 +540,58 @@ export function GestaoGraficaWorkspace() {
           </div>
         </div>
       </section>
+    </div>
+  );
+}
+
+function CatalogBox({ title, fields, onSave }: { title: string; fields: { key: string; placeholder: string; value?: string }[]; onSave: (payload: AnyRow) => Promise<boolean> }) {
+  const [form, setForm] = useState<AnyRow>(() => Object.fromEntries(fields.map((field) => [field.key, field.value || ""])));
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const saved = await onSave(form);
+    if (saved) setForm(Object.fromEntries(fields.map((field) => [field.key, field.value || ""])));
+  }
+
+  return (
+    <form className="rounded-lg border border-slate-200 bg-white p-3" onSubmit={submit}>
+      <h3 className="font-black text-slate-950">{title}</h3>
+      <div className="mt-3 grid gap-2">
+        {fields.map((field) => (
+          <input
+            key={field.key}
+            className={inputClass}
+            placeholder={field.placeholder}
+            value={form[field.key] || ""}
+            onChange={(event) => setForm({ ...form, [field.key]: event.target.value })}
+          />
+        ))}
+      </div>
+      <button className="primary-action mt-3 inline-flex w-full items-center justify-center gap-2 py-2 text-xs" type="submit">
+        <Plus size={14} /> Salvar
+      </button>
+    </form>
+  );
+}
+
+function CatalogList({ title, rows, value }: { title: string; rows: AnyRow[]; value: (item: AnyRow) => string }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-3">
+      <h3 className="font-black text-slate-950">{title}</h3>
+      <div className="mt-3 space-y-2">
+        {rows.slice(0, 6).map((item) => (
+          <div key={item.id} className="rounded-md bg-slate-50 px-3 py-2">
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-sm font-black text-slate-800">{item.name || item.key}</p>
+              <span className={`rounded-full px-2 py-1 text-[10px] font-black ${item.validationStatus === "VALIDATED" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                {item.validationStatus === "VALIDATED" ? "Validado" : "Validar"}
+              </span>
+            </div>
+            <p className="mt-1 text-xs font-semibold text-slate-500">{value(item)}</p>
+          </div>
+        ))}
+        {!rows.length ? <p className="rounded-md bg-slate-50 p-3 text-xs font-bold text-slate-500">Nenhum cadastro ainda.</p> : null}
+      </div>
     </div>
   );
 }

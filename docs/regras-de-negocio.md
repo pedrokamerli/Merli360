@@ -10,6 +10,11 @@
 - Orcamento aprovado gera entrega pendente e recebimento financeiro vinculado.
 - Pedido preserva snapshot comercial e de custo do orcamento aprovado.
 - Alteracoes posteriores em produto, material ou processo nao alteram pedidos antigos.
+- Produtos, materiais, processos e parametros sao sempre isolados por tenant.
+- Material com custo maior que zero entra como `VALIDATED`; material sem custo entra como `PENDING_VALIDATION`.
+- Toda alteracao de custo de material cria novo historico de custo.
+- Processo com custo maior que zero entra como `VALIDATED`; processo sem custo entra como `PENDING_VALIDATION`.
+- Percentuais operacionais, como perda prevista, devem ficar entre 0 e 100.
 - Recebimento parcial deve manter valor pendente e status corretos.
 - Entrega concluida deve abrir pos-venda automaticamente.
 - Registros transacionais devem ser cancelados com motivo, nao apagados.
