@@ -33,6 +33,7 @@ A chave do modulo e `gestao-grafica`. O super admin tambem tem acesso. Neste cic
 16. Acoes criticas protegidas no backend por perfil operacional da grafica.
 17. Producao com checklist obrigatorio para liberacao, etapas atualizaveis, consumo de material e registro de retrabalho.
 18. Importacao de planilha Excel com previa e confirmacao para parametros, materiais, processos e produtos.
+19. Upload privado de arquivos da grafica vinculado a oportunidade, orcamento, pedido, producao, entrega ou pos-venda.
 
 ## Dados insuficientes
 

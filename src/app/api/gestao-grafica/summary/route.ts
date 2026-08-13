@@ -31,6 +31,16 @@ export async function GET(request: NextRequest) {
       db.graphicSetting.findMany({ where: { tenantId: user.tenantId, status: "ACTIVE" } })
     ]);
 
+    const productionAttachments = await db.graphicAttachment.findMany({
+      where: { tenantId: user.tenantId, linkedModel: "production", linkedId: { in: productionOrders.map((item: any) => item.id) }, status: "ACTIVE" },
+      orderBy: { createdAt: "desc" }
+    });
+    const attachmentsByProduction = productionAttachments.reduce((acc: Record<string, any[]>, item: any) => {
+      acc[item.linkedId] = [...(acc[item.linkedId] || []), item];
+      return acc;
+    }, {});
+    const productionRows = productionOrders.map((item: any) => ({ ...item, attachments: attachmentsByProduction[item.id] || [] }));
+
     const soldCents = orders.reduce((sum: number, item: any) => sum + item.soldValueCents, 0);
     const billedCents = orders.reduce((sum: number, item: any) => sum + item.billedValueCents, 0);
     const receivedCents = orders.reduce((sum: number, item: any) => sum + item.receivedValueCents, 0);
@@ -39,8 +49,8 @@ export async function GET(request: NextRequest) {
     const returnsToday = opportunities.filter((item: any) => item.nextFollowUp && new Date(item.nextFollowUp) >= today && new Date(item.nextFollowUp) < tomorrow).length;
     const overdueReturns = opportunities.filter((item: any) => item.status === "OPEN" && item.nextFollowUp && new Date(item.nextFollowUp) < today).length;
     const qualityAlerts = opportunities.filter((item: any) => item.status === "OPEN" && (!item.nextAction || !item.nextFollowUp)).length;
-    const reworkOpen = productionOrders.flatMap((item: any) => item.reworks || []).filter((item: any) => item.status === "OPEN").length;
-    const wasteQuantity = productionOrders.flatMap((item: any) => item.consumptions || []).reduce((sum: number, item: any) => sum + Number(item.wasteQuantity || 0), 0);
+    const reworkOpen = productionRows.flatMap((item: any) => item.reworks || []).filter((item: any) => item.status === "OPEN").length;
+    const wasteQuantity = productionRows.flatMap((item: any) => item.consumptions || []).reduce((sum: number, item: any) => sum + Number(item.wasteQuantity || 0), 0);
 
     return NextResponse.json({
       module: GRAPHIC_MODULE,
@@ -51,7 +61,7 @@ export async function GET(request: NextRequest) {
         qualityAlerts,
         quotesSent: quotes.filter((item: any) => ["SENT", "VIEWED"].includes(item.status)).length,
         quotesApproved: quotes.filter((item: any) => item.status === "APPROVED").length,
-        productionOpen: productionOrders.filter((item: any) => ["PENDING", "RELEASED", "IN_PROGRESS", "BLOCKED"].includes(item.status)).length,
+        productionOpen: productionRows.filter((item: any) => ["PENDING", "RELEASED", "IN_PROGRESS", "BLOCKED"].includes(item.status)).length,
         reworkOpen,
         wasteQuantity,
         deliveriesOpen: deliveries.filter((item: any) => ["PENDING", "SCHEDULED"].includes(item.status)).length,
@@ -66,7 +76,7 @@ export async function GET(request: NextRequest) {
       opportunities,
       quotes,
       orders,
-      productionOrders,
+      productionOrders: productionRows,
       deliveries,
       postSales,
       receivables,

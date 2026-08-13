@@ -14,10 +14,12 @@
 10. O sistema cria pedido e ordem de producao automaticamente.
 11. Acompanhe producao, entrega e recebimento pelo painel.
 12. Na producao, marque checklist, inicie/conclua etapas, registre consumo e retrabalho quando houver.
-13. Marque a entrega como entregue ou aceita.
-14. Registre recebimentos parciais ou totais.
-15. Feche o pos-venda com satisfacao de 1 a 5.
+13. Anexe artes, provas, PDFs ou fotos diretamente na ordem de producao quando precisar registrar evidencia.
+14. Marque a entrega como entregue ou aceita.
+15. Registre recebimentos parciais ou totais.
+16. Feche o pos-venda com satisfacao de 1 a 5.
 
 Quando um indicador aparecer como `Dados insuficientes`, significa que ainda nao ha registros confiaveis para o calculo.
 Quando um material ou processo aparecer como `Validar`, confira o custo real antes de usar como referencia comercial definitiva.
 Uma ordem so deve ser liberada para producao quando arte, medidas, material, prazo e arquivos estiverem conferidos.
+Arquivos anexados nao ficam em pasta publica; o acesso passa pela autenticacao do sistema.

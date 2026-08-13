@@ -243,6 +243,26 @@ export function GestaoGraficaWorkspace() {
     return true;
   }
 
+  async function uploadGraphicAttachment(file: File, linkedModel: string, linkedId: string, purpose = "PHOTO") {
+    setSaving(true);
+    setMessage("");
+    const form = new FormData();
+    form.append("file", file);
+    form.append("linkedModel", linkedModel);
+    form.append("linkedId", linkedId);
+    form.append("purpose", purpose);
+    const response = await fetch("/api/gestao-grafica/attachments", { method: "POST", body: form });
+    const result = await response.json();
+    setSaving(false);
+    if (!response.ok) {
+      setMessage(result.error || "Nao foi possivel anexar o arquivo.");
+      return false;
+    }
+    setMessage("Arquivo anexado com seguranca.");
+    await load();
+    return true;
+  }
+
   async function updateDelivery(id: string, status: string) {
     const note = status === "COMPLAINT" ? prompt("Informe a reclamacao ou motivo") || "" : "";
     setSaving(true);
@@ -535,7 +555,7 @@ export function GestaoGraficaWorkspace() {
           </div>
           <div className="space-y-2">
             {productionRows.length ? productionRows.map((item: AnyRow) => (
-              <ProductionCard key={item.id} item={item} materials={materials} onStatus={updateProduction} onAction={updateProductionAction} />
+              <ProductionCard key={item.id} item={item} materials={materials} onStatus={updateProduction} onAction={updateProductionAction} onUpload={uploadGraphicAttachment} />
             )) : <p className="rounded-lg bg-slate-50 p-4 text-sm font-bold text-slate-500">Nenhuma ordem de producao.</p>}
           </div>
         </div>
@@ -679,7 +699,7 @@ function parseChecklist(value: unknown) {
   }
 }
 
-function ProductionCard({ item, materials, onStatus, onAction }: { item: AnyRow; materials: AnyRow[]; onStatus: (id: string, status: string, extra?: AnyRow) => Promise<void>; onAction: (id: string, payload: AnyRow, success?: string) => Promise<boolean> }) {
+function ProductionCard({ item, materials, onStatus, onAction, onUpload }: { item: AnyRow; materials: AnyRow[]; onStatus: (id: string, status: string, extra?: AnyRow) => Promise<void>; onAction: (id: string, payload: AnyRow, success?: string) => Promise<boolean>; onUpload: (file: File, linkedModel: string, linkedId: string, purpose?: string) => Promise<boolean> }) {
   const checklist = parseChecklist(item.checklist);
   const checklistItems = [
     ["arte", "Arte"],
@@ -722,7 +742,7 @@ function ProductionCard({ item, materials, onStatus, onAction }: { item: AnyRow;
       <div className="flex items-start justify-between gap-2">
         <div>
           <h3 className="font-black text-slate-950">Pedido #{item.order?.number || "-"}</h3>
-          <p className="text-xs font-semibold text-slate-500">Status {item.status} | promessa {day(item.promisedAt)}</p>
+          <p className="text-xs font-semibold text-slate-500">Status {item.status} | promessa {day(item.promisedAt)} | {(item.attachments || []).length} arquivo(s)</p>
         </div>
         <span className={missing ? "rounded-full bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700" : "rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700"}>
           {missing ? `${missing} pend.` : "Checklist ok"}
@@ -758,6 +778,14 @@ function ProductionCard({ item, materials, onStatus, onAction }: { item: AnyRow;
         <button className="secondary-action py-2 text-xs" onClick={() => onStatus(item.id, "IN_PROGRESS")} type="button">Iniciar</button>
         <button className="secondary-action py-2 text-xs" onClick={registerConsumption} type="button">Consumo</button>
         <button className="secondary-action py-2 text-xs" onClick={registerRework} type="button">Retrabalho</button>
+        <label className="secondary-action cursor-pointer py-2 text-center text-xs">
+          Anexar
+          <input className="hidden" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) void onUpload(file, "production", item.id, "PHOTO");
+            event.currentTarget.value = "";
+          }} />
+        </label>
         <button className="secondary-action py-2 text-xs" onClick={() => onStatus(item.id, "BLOCKED")} type="button">Bloquear</button>
         <button className="primary-action py-2 text-xs" onClick={() => onStatus(item.id, "COMPLETED")} type="button">Concluir</button>
       </div>

@@ -25,3 +25,5 @@
 - Etapas de producao registram evento com usuario, status, tempo e observacao quando informados.
 - Consumo de material deve ter descricao e quantidade positiva.
 - Retrabalho deve registrar motivo, impacto e acao corretiva.
+- Arquivos da grafica devem validar MIME, extensao, tamanho, tenant e registro vinculado antes de gravar.
+- Downloads de arquivos usam rota autenticada e filtrada por tenant.
