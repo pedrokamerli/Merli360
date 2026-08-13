@@ -44,7 +44,7 @@ const parseWorkbook = (filePath) => {
   for (const sheet of workbook.SheetNames) {
     const sheetKey = normalize(sheet).replace(/[^a-z0-9]/g, "");
     const rows = rowsFromSheet(workbook, sheet);
-    if (sheetKey.includes("material")) for (const row of rows) {
+    if (sheetKey.includes("material") || sheetKey.includes("materiai")) for (const row of rows) {
       const name = get(row, ["material", "nome", "descricao", "insumo"]);
       if (!name) continue;
       const code = get(row, ["codigo", "cod"]);
