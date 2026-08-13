@@ -25,8 +25,9 @@ test("calcula indicadores comerciais e de qualidade da grafica", () => {
       { clientId: "c2", clientName: "Cliente B", clientSegment: "Industria", soldValueCents: 50000, billedValueCents: 0, receivedValueCents: 0 }
     ],
     productionOrders: [
-      { status: "IN_PROGRESS", promisedAt: "2026-08-12T10:00:00-03:00", reworks: [{ status: "OPEN" }], consumptions: [{ wasteQuantity: 2 }] },
-      { status: "BLOCKED", promisedAt: "2026-08-14T10:00:00-03:00", reworks: [], consumptions: [] }
+      { status: "IN_PROGRESS", promisedAt: "2026-08-12T10:00:00-03:00", createdAt: "2026-08-13T08:00:00-03:00", order: { quote: { approvedAt: "2026-08-13T06:00:00-03:00" } }, steps: [{ estimatedMinutes: 60, actualMinutes: 90 }], reworks: [{ status: "OPEN" }], consumptions: [{ wasteQuantity: 2 }] },
+      { status: "BLOCKED", promisedAt: "2026-08-14T10:00:00-03:00", createdAt: "2026-08-13T09:00:00-03:00", order: { quote: { approvedAt: "2026-08-13T08:00:00-03:00" } }, steps: [{ estimatedMinutes: 120, actualMinutes: 60 }], reworks: [], consumptions: [] },
+      { status: "COMPLETED", createdAt: "2026-08-10T08:00:00-03:00", updatedAt: "2026-08-10T14:00:00-03:00", order: { quote: { approvedAt: "2026-08-10T07:00:00-03:00" } }, steps: [{ estimatedMinutes: 60, actualMinutes: 60 }], reworks: [], consumptions: [] }
     ],
     deliveries: [
       { status: "PENDING" },
@@ -50,6 +51,11 @@ test("calcula indicadores comerciais e de qualidade da grafica", () => {
   assert.equal(result.metrics.approvalRequiredOpen, 1);
   assert.equal(result.metrics.productionDelayed, 1);
   assert.equal(result.metrics.productionBlocked, 1);
+  assert.equal(result.metrics.productionPlannedHours, 4);
+  assert.equal(result.metrics.productionActualHours, 3.5);
+  assert.equal(result.metrics.productionTimeVariancePercent, -12);
+  assert.equal(result.metrics.averageProductionCycleHours, 6);
+  assert.equal(result.metrics.averageApprovalToProductionHours, 1.3);
   assert.equal(result.metrics.deliveryOnTimePercent, 50);
   assert.equal(result.metrics.openReceivablesCents, 80000);
   assert.equal(result.groups.salesBySource[0].label, "Instagram");
@@ -58,6 +64,7 @@ test("calcula indicadores comerciais e de qualidade da grafica", () => {
   assert.equal(result.groups.salesBySegment[0].label, "Varejo");
   assert.equal(result.groups.revenueByClient[0].valueCents, 200000);
   assert.equal(result.metricNotes.find((item) => item.key === "openReceivablesCents")?.quality, "OK");
+  assert.equal(result.metricNotes.find((item) => item.key === "productionTimeVariancePercent")?.quality, "OK");
   assert.equal(result.metricNotes.find((item) => item.key === "deliveryOnTimePercent")?.quality, "OK");
 });
 

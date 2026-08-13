@@ -33,7 +33,20 @@ function sumCents(rows: any[], key: string) {
 function average(values: number[]) {
   const valid = values.filter((value) => Number.isFinite(value));
   if (!valid.length) return null;
-  return Math.round(valid.reduce((sum, value) => sum + value, 0) / valid.length);
+  return Math.round((valid.reduce((sum, value) => sum + value, 0) / valid.length) * 10) / 10;
+}
+
+function hoursFromMinutes(minutes: number | null) {
+  if (minutes === null) return null;
+  return Math.round((minutes / 60) * 10) / 10;
+}
+
+function diffHours(start: unknown, end: unknown) {
+  if (!start || !end) return null;
+  const startDate = new Date(String(start));
+  const endDate = new Date(String(end));
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return null;
+  return Math.max(0, Math.round(((endDate.getTime() - startDate.getTime()) / 36e5) * 10) / 10);
 }
 
 function moneyMetric(canViewFinancial: boolean, rows: any[], value: number) {
@@ -77,6 +90,14 @@ export function buildGraphicDashboard(input: MetricInput) {
   const overdueReceivables = openReceivables.filter((item) => new Date(item.dueDate) < input.today);
   const reworks = input.productionOrders.flatMap((item) => item.reworks || []);
   const consumptions = input.productionOrders.flatMap((item) => item.consumptions || []);
+  const productionSteps = input.productionOrders.flatMap((item) => item.steps || []);
+  const completedProduction = input.productionOrders.filter((item) => item.status === "COMPLETED");
+  const plannedMinutes = productionSteps.reduce((sum, item) => sum + Number(item.estimatedMinutes || 0), 0);
+  const actualMinutes = productionSteps.reduce((sum, item) => sum + Number(item.actualMinutes || 0), 0);
+  const completedProductionDurations = completedProduction.map((item) => diffHours(item.createdAt, item.updatedAt)).filter((value): value is number => value !== null);
+  const approvalToProductionHours = input.productionOrders
+    .map((item) => diffHours(item.order?.quote?.approvedAt || item.approvedAt, item.createdAt))
+    .filter((value): value is number => value !== null);
   const soldCents = sumCents(input.orders, "soldValueCents");
   const billedCents = sumCents(input.orders, "billedValueCents");
   const receivedCents = sumCents(input.orders, "receivedValueCents");
@@ -111,6 +132,11 @@ export function buildGraphicDashboard(input: MetricInput) {
     productionOpen: openProduction.length,
     productionBlocked: blockedProduction.length,
     productionDelayed: delayedProduction.length,
+    productionPlannedHours: hoursFromMinutes(plannedMinutes),
+    productionActualHours: hoursFromMinutes(actualMinutes),
+    productionTimeVariancePercent: plannedMinutes > 0 && actualMinutes > 0 ? Math.round(((actualMinutes - plannedMinutes) / plannedMinutes) * 100) : null,
+    averageProductionCycleHours: average(completedProductionDurations),
+    averageApprovalToProductionHours: average(approvalToProductionHours),
     reworkOpen: reworks.filter((item) => item.status === "OPEN").length,
     wasteQuantity: consumptions.reduce((sum, item) => sum + Number(item.wasteQuantity || 0), 0),
     deliveriesOpen: openDeliveries.length,
@@ -146,6 +172,9 @@ export function buildGraphicDashboard(input: MetricInput) {
     note({ key: "discountsCents", label: "Descontos concedidos", formula: "Soma de discountCents dos orcamentos carregados.", period: "Ultimos orcamentos carregados no painel.", source: "GraphicQuote.discountCents", criteria: "Somente registros do tenant autenticado.", limitations: "Nao representa desconto historico fora do modulo grafico." }, input.quotes, input.canViewFinancial),
     note({ key: "productionOpen", label: "Producao aberta", formula: "Ordens com status PENDING, RELEASED, IN_PROGRESS ou BLOCKED.", period: "Ultimos registros carregados no painel.", source: "GraphicProductionOrder", criteria: "Exclui ordens concluidas e canceladas.", limitations: "Nao substitui relatorio historico completo." }, input.productionOrders),
     note({ key: "productionDelayed", label: "Producao atrasada", formula: "Ordens abertas com promisedAt anterior ao dia atual.", period: "Dia atual.", source: "GraphicProductionOrder.promisedAt", criteria: "Apenas producoes abertas.", limitations: "Ordens sem prazo prometido nao entram como atraso." }, input.productionOrders),
+    note({ key: "productionTimeVariancePercent", label: "Tempo previsto x realizado", formula: "Soma de actualMinutes menos estimatedMinutes dividida pela soma de estimatedMinutes.", period: "Etapas de producao carregadas no painel.", source: "GraphicProductionStep.estimatedMinutes/actualMinutes", criteria: "Considera etapas com tempo preenchido.", limitations: "Etapas sem estimativa ou sem tempo realizado reduzem a qualidade do indicador." }, productionSteps),
+    note({ key: "averageProductionCycleHours", label: "Prazo medio de producao", formula: "Media de horas entre criacao e ultima atualizacao das ordens COMPLETED.", period: "Ordens concluidas carregadas no painel.", source: "GraphicProductionOrder.createdAt/updatedAt", criteria: "Apenas ordens concluidas.", limitations: "Atualizacoes tardias podem aumentar o ciclo medido." }, completedProductionDurations),
+    note({ key: "averageApprovalToProductionHours", label: "Aprovacao ate producao", formula: "Media de horas entre aprovacao do orcamento e criacao da ordem de producao.", period: "Ordens carregadas no painel.", source: "GraphicQuote.approvedAt e GraphicProductionOrder.createdAt", criteria: "Apenas ordens com data de aprovacao disponivel.", limitations: "Ordens sem aprovacao registrada nao entram no calculo." }, approvalToProductionHours),
     note({ key: "deliveryOnTimePercent", label: "Entregas no prazo", formula: "Percentual de entregas realizadas ate expectedAt.", period: "Entregas carregadas no painel.", source: "GraphicDelivery.expectedAt/deliveredAt", criteria: "Apenas entregas com data realizada.", limitations: "Sem data realizada nao entra no percentual." }, completedDeliveries),
     note({ key: "openReceivablesCents", label: "Recebimento pendente", formula: "Soma de amountCents menos receivedCents em recebimentos nao quitados.", period: "Base atual de recebimentos da grafica.", source: "GraphicReceivable", criteria: "Somente parcelas do tenant.", limitations: "Depende da baixa correta dos pagamentos." }, input.receivables, input.canViewFinancial)
   ];

@@ -34,6 +34,7 @@
 - Acesso ao modulo nao basta para executar acoes criticas; catalogo, configuracoes, aprovacao, producao, recebimento e pos-venda validam permissao operacional no backend.
 - Ordem de producao so pode ser liberada com checklist completo.
 - Etapas de producao registram evento com usuario, status, tempo e observacao quando informados.
+- Indicadores de tempo da producao devem usar tempos persistidos em etapas e datas reais de ordem/orcamento; quando faltarem datas ou minutos, mostrar base insuficiente.
 - Consumo de material deve ter descricao e quantidade positiva.
 - Retrabalho deve registrar motivo, impacto e acao corretiva.
 - Arquivos da grafica devem validar MIME, extensao, tamanho, tenant e registro vinculado antes de gravar.

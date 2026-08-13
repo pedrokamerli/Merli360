@@ -44,6 +44,7 @@ A chave do modulo e `gestao-grafica`. O super admin tambem tem acesso. Neste cic
 27. Administradores do modulo podem configurar papeis operacionais da equipe por usuario do tenant.
 28. Funil visual usa etapas configuraveis por tenant em `GraphicPipelineStage`, com validacao no backend ao mover oportunidades.
 29. Dashboard comercial mostra clientes novos, recorrentes, inativos e rankings por origem, produto, responsavel e segmento.
+30. Dashboard de producao mede horas previstas, horas realizadas, variacao, ciclo medio e tempo entre aprovacao e producao.
 
 ## Dados insuficientes
 
@@ -60,6 +61,8 @@ Cada recebimento grafico vinculado a um titulo financeiro cria baixa idempotente
 Custos zerados ou ainda nao conferidos entram como `PENDING_VALIDATION`. A validacao real dos valores deve ser feita pelo responsavel operacional antes de usar esses dados como base final de preco.
 
 Na producao, a liberacao exige checklist completo de arte, medidas, material, prazo e arquivos. Retrabalho exige motivo, impacto e acao corretiva.
+
+Indicadores de tempo de producao usam `GraphicProductionStep` e `GraphicProductionOrder`. Ordens ou etapas sem tempo preenchido nao entram como base suficiente para o indicador completo.
 
 Orcamentos aprovados nao podem voltar de status. Recusa e cancelamento exigem motivo e geram versao historica.
 
