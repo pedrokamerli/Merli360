@@ -22,9 +22,9 @@ export async function GET(request: NextRequest) {
     tomorrow.setDate(tomorrow.getDate() + 1);
 
     const [opportunities, quotes, orders, productionOrders, deliveries, postSales, receivables, products, materials, processes, settings, stages] = await Promise.all([
-      db.graphicOpportunity.findMany({ where: { tenantId: user.tenantId }, orderBy: { updatedAt: "desc" }, take: 100, include: { activities: { orderBy: { createdAt: "desc" }, take: 3 }, tasks: { where: { status: "OPEN" }, orderBy: { dueDate: "asc" }, take: 3 } } }),
-      db.graphicQuote.findMany({ where: { tenantId: user.tenantId }, orderBy: { updatedAt: "desc" }, take: 100, include: { items: true } }),
-      db.graphicOrder.findMany({ where: { tenantId: user.tenantId }, orderBy: { createdAt: "desc" }, take: 50 }),
+      db.graphicOpportunity.findMany({ where: { tenantId: user.tenantId }, orderBy: { updatedAt: "desc" }, take: 100, include: { owner: { select: { name: true, username: true } }, activities: { orderBy: { createdAt: "desc" }, take: 3 }, tasks: { where: { status: "OPEN" }, orderBy: { dueDate: "asc" }, take: 3 } } }),
+      db.graphicQuote.findMany({ where: { tenantId: user.tenantId }, orderBy: { updatedAt: "desc" }, take: 100, include: { items: { include: { product: { select: { name: true } } } } } }),
+      db.graphicOrder.findMany({ where: { tenantId: user.tenantId }, orderBy: { createdAt: "desc" }, take: 50, include: { quote: { select: { productInterest: true } } } }),
       db.graphicProductionOrder.findMany({ where: { tenantId: user.tenantId }, orderBy: { updatedAt: "desc" }, take: 50, include: { order: true, steps: { orderBy: { position: "asc" } }, consumptions: true, reworks: true } }),
       db.graphicDelivery.findMany({ where: { tenantId: user.tenantId }, orderBy: { expectedAt: "asc" }, take: 50, include: { order: true } }),
       db.graphicPostSale.findMany({ where: { tenantId: user.tenantId }, orderBy: { createdAt: "desc" }, take: 50, include: { order: true } }),
@@ -45,6 +45,12 @@ export async function GET(request: NextRequest) {
       return acc;
     }, {});
     const productionRows = productionOrders.map((item: any) => ({ ...item, attachments: attachmentsByProduction[item.id] || [] }));
+    const clientIds = [...new Set([...opportunities.map((item: any) => item.clientId), ...orders.map((item: any) => item.clientId)].filter(Boolean))];
+    const clients = clientIds.length ? await db.client.findMany({ where: { tenantId: user.tenantId, id: { in: clientIds } }, select: { id: true, name: true, segment: true } }) : [];
+    const clientsById = new Map<string, any>(clients.map((item: any) => [item.id, item]));
+    const opportunityRows = opportunities.map((item: any) => ({ ...item, ownerName: item.owner?.name || item.owner?.username || "Sem responsavel" }));
+    const quoteRows = quotes.map((item: any) => ({ ...item, productName: item.items?.[0]?.product?.name || item.items?.[0]?.description || "Produto a definir" }));
+    const orderRows = orders.map((item: any) => ({ ...item, clientName: clientsById.get(item.clientId)?.name || "Cliente sem nome", clientSegment: clientsById.get(item.clientId)?.segment || "Sem segmento", productName: item.quote?.productInterest || "Produto a definir" }));
     const tenantUsers = canManageSettings
       ? await db.user.findMany({ where: { tenantId: user.tenantId }, orderBy: { name: "asc" }, select: { id: true, name: true, username: true, role: true, moduleAccess: true } })
       : [];
@@ -54,9 +60,9 @@ export async function GET(request: NextRequest) {
     }));
 
     const dashboard = buildGraphicDashboard({
-      opportunities,
-      quotes,
-      orders,
+      opportunities: opportunityRows,
+      quotes: quoteRows,
+      orders: orderRows,
       productionOrders: productionRows,
       deliveries,
       postSales,
@@ -73,9 +79,10 @@ export async function GET(request: NextRequest) {
       canManageSettings,
       metrics: dashboard.metrics,
       metricNotes: dashboard.metricNotes,
-      opportunities,
-      quotes,
-      orders,
+      groups: dashboard.groups,
+      opportunities: opportunityRows,
+      quotes: quoteRows,
+      orders: orderRows,
       productionOrders: productionRows,
       deliveries,
       postSales,

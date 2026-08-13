@@ -41,6 +41,18 @@ function moneyMetric(canViewFinancial: boolean, rows: any[], value: number) {
   return rows.length ? value : 0;
 }
 
+function topGroups(rows: any[], key: string, valueKey?: string) {
+  const map = new Map<string, { label: string; count: number; valueCents: number }>();
+  for (const row of rows) {
+    const label = String(row[key] || "Nao informado").trim() || "Nao informado";
+    const current = map.get(label) || { label, count: 0, valueCents: 0 };
+    current.count += 1;
+    current.valueCents += valueKey ? Number(row[valueKey] || 0) : 0;
+    map.set(label, current);
+  }
+  return [...map.values()].sort((a, b) => b.count - a.count || b.valueCents - a.valueCents).slice(0, 8);
+}
+
 function note(note: Omit<MetricNote, "quality" | "message">, rows: any[], canView = true): MetricNote {
   if (!canView) return { ...note, quality: "RESTRICTED", message: restrictedMessage };
   if (!rows.length) return { ...note, quality: "INSUFFICIENT_DATA", message: insufficientMessage };
@@ -71,12 +83,24 @@ export function buildGraphicDashboard(input: MetricInput) {
   const approvedQuoteValues = approvedQuotes.map((item) => Number(item.totalPriceCents || 0)).filter((value) => value > 0);
   const quoteMargins = input.quotes.map((item) => Number(item.marginPercent)).filter((value) => Number.isFinite(value) && value !== 0);
   const discountsCents = sumCents(input.quotes, "discountCents");
+  const clientOrderCounts = new Map<string, number>();
+  for (const order of input.orders) {
+    if (!order.clientId) continue;
+    clientOrderCounts.set(order.clientId, (clientOrderCounts.get(order.clientId) || 0) + 1);
+  }
+  const opportunityClientIds = new Set(input.opportunities.map((item) => item.clientId).filter(Boolean));
+  const newClients = [...clientOrderCounts.values()].filter((count) => count === 1).length;
+  const recurringClients = [...clientOrderCounts.values()].filter((count) => count > 1).length;
+  const inactiveClients = [...opportunityClientIds].filter((clientId) => !clientOrderCounts.has(clientId)).length;
 
   const metrics = {
     opportunitiesOpen: openOpportunities.length,
     returnsToday,
     overdueReturns,
     qualityAlerts,
+    clientsNew: newClients,
+    clientsRecurring: recurringClients,
+    clientsInactive: inactiveClients,
     quotesSent: sentQuotes.length,
     quotesApproved: approvedQuotes.length,
     quoteConversionPercent: sentQuotes.length || approvedQuotes.length ? Math.round((approvedQuotes.length / Math.max(1, sentQuotes.length + approvedQuotes.length)) * 100) : null,
@@ -100,9 +124,21 @@ export function buildGraphicDashboard(input: MetricInput) {
     dataQuality: input.orders.length ? "OK" : insufficientMessage
   };
 
+  const groups = {
+    salesBySource: topGroups(input.opportunities, "source"),
+    salesByProduct: topGroups(input.opportunities, "productInterest"),
+    salesByResponsible: topGroups(input.opportunities, "ownerName"),
+    salesBySegment: topGroups(input.orders, "clientSegment", "soldValueCents"),
+    revenueByProduct: input.canViewFinancial ? topGroups(input.quotes, "productName", "totalPriceCents") : [],
+    revenueByClient: input.canViewFinancial ? topGroups(input.orders, "clientName", "soldValueCents") : []
+  };
+
   const metricNotes: MetricNote[] = [
     note({ key: "opportunitiesOpen", label: "Oportunidades abertas", formula: "Quantidade de oportunidades com status OPEN.", period: "Base atual do tenant.", source: "GraphicOpportunity", criteria: "Filtra somente tenant do usuario autenticado.", limitations: "Depende do preenchimento correto do status." }, input.opportunities),
     note({ key: "returnsToday", label: "Retornos hoje", formula: "Oportunidades com nextFollowUp entre hoje 00:00 e amanha 00:00.", period: "Dia atual.", source: "GraphicOpportunity.nextFollowUp", criteria: "Considera todos os responsaveis do tenant.", limitations: "Retornos sem data nao entram neste indicador." }, input.opportunities),
+    note({ key: "clientsNew", label: "Clientes novos", formula: "Clientes com exatamente um pedido grafico no conjunto carregado.", period: "Ultimos pedidos carregados no painel.", source: "GraphicOrder.clientId", criteria: "Conta clientes distintos por tenant.", limitations: "Historico limitado pela janela operacional do painel." }, input.orders),
+    note({ key: "clientsRecurring", label: "Clientes recorrentes", formula: "Clientes com mais de um pedido grafico no conjunto carregado.", period: "Ultimos pedidos carregados no painel.", source: "GraphicOrder.clientId", criteria: "Conta clientes distintos por tenant.", limitations: "Historico limitado pela janela operacional do painel." }, input.orders),
+    note({ key: "clientsInactive", label: "Clientes sem compra grafica", formula: "Clientes com oportunidade grafica carregada e nenhum pedido grafico carregado.", period: "Base operacional carregada no painel.", source: "GraphicOpportunity.clientId e GraphicOrder.clientId", criteria: "Somente clientes do tenant autenticado.", limitations: "Nao mede inatividade fora da janela carregada." }, input.opportunities),
     note({ key: "qualityAlerts", label: "Alertas de qualidade", formula: "Oportunidades OPEN sem proximo passo ou sem data de retorno.", period: "Base atual do tenant.", source: "GraphicOpportunity", criteria: "Somente oportunidades abertas.", limitations: "Nao mede qualidade do texto preenchido." }, input.opportunities),
     note({ key: "quotesApproved", label: "Orcamentos aprovados", formula: "Quantidade de orcamentos com status APPROVED.", period: "Ultimos registros carregados no painel.", source: "GraphicQuote", criteria: "Inclui apenas orcamentos do tenant.", limitations: "Painel operacional limita a consulta aos registros recentes." }, input.quotes),
     note({ key: "averageTicketCents", label: "Ticket medio aprovado", formula: "Media de totalPriceCents dos orcamentos APPROVED.", period: "Ultimos orcamentos carregados no painel.", source: "GraphicQuote.totalPriceCents", criteria: "Apenas orcamentos aprovados com valor positivo.", limitations: "Nao inclui pedidos criados fora do fluxo de orcamento." }, approvedQuotes, input.canViewFinancial),
@@ -114,5 +150,5 @@ export function buildGraphicDashboard(input: MetricInput) {
     note({ key: "openReceivablesCents", label: "Recebimento pendente", formula: "Soma de amountCents menos receivedCents em recebimentos nao quitados.", period: "Base atual de recebimentos da grafica.", source: "GraphicReceivable", criteria: "Somente parcelas do tenant.", limitations: "Depende da baixa correta dos pagamentos." }, input.receivables, input.canViewFinancial)
   ];
 
-  return { metrics, metricNotes };
+  return { metrics, metricNotes, groups };
 }

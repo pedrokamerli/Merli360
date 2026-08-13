@@ -43,6 +43,7 @@ A chave do modulo e `gestao-grafica`. O super admin tambem tem acesso. Neste cic
 26. Dashboard exibe ticket medio aprovado, margem media estimada, descontos, aprovacoes abertas, producao atrasada/bloqueada e entregas no prazo.
 27. Administradores do modulo podem configurar papeis operacionais da equipe por usuario do tenant.
 28. Funil visual usa etapas configuraveis por tenant em `GraphicPipelineStage`, com validacao no backend ao mover oportunidades.
+29. Dashboard comercial mostra clientes novos, recorrentes, inativos e rankings por origem, produto, responsavel e segmento.
 
 ## Dados insuficientes
 
@@ -51,6 +52,8 @@ Indicadores financeiros, margem e custos exibem aviso quando a base nao possui d
 Indicadores financeiros ficam ocultos para perfis sem autorizacao financeira/custo. Nesses casos, o painel mostra `Restrito` em vez de expor valor vendido, faturado, recebido ou pendente.
 
 Ticket medio, margem media e descontos tambem respeitam permissao financeira/custo. Producoes sem prazo prometido e entregas sem data realizada nao entram nos indicadores de atraso ou pontualidade.
+
+Rankings de resultado por cliente e produto ocultam valores para perfis sem permissao financeira/custo. Rankings comerciais sem valor financeiro exibem apenas contagem operacional.
 
 Cada recebimento grafico vinculado a um titulo financeiro cria baixa idempotente no financeiro central, com movimento de caixa associado. Pagamentos acima do saldo aberto aplicam somente o valor pendente.
 

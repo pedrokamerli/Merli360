@@ -19,7 +19,7 @@
 15. Use `Gerar pedido` quando o cliente confirmar.
 16. O sistema cria pedido e ordem de producao automaticamente.
 17. Acompanhe producao, entrega e recebimento pelo painel.
-18. Use os indicadores de ticket medio, margem, descontos, atrasos e entregas no prazo para priorizar a rotina.
+18. Use os indicadores de clientes novos, recorrentes, inativos, ticket medio, margem, descontos, atrasos e entregas no prazo para priorizar a rotina.
 19. Na producao, marque checklist, inicie/conclua etapas, registre consumo e retrabalho quando houver.
 20. Anexe artes, provas, PDFs ou fotos diretamente na ordem de producao quando precisar registrar evidencia.
 21. Use os botoes de relatorio para baixar CSV de oportunidades, orcamentos, pedidos, producao, recebimentos ou auditoria.

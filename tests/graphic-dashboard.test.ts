@@ -11,15 +11,19 @@ test("calcula indicadores comerciais e de qualidade da grafica", () => {
     tomorrow,
     canViewFinancial: true,
     opportunities: [
-      { status: "OPEN", nextAction: "Ligar", nextFollowUp: "2026-08-13T10:00:00-03:00" },
-      { status: "OPEN", nextAction: "", nextFollowUp: null }
+      { status: "OPEN", clientId: "c1", source: "Instagram", productInterest: "Banner", ownerName: "Ana", nextAction: "Ligar", nextFollowUp: "2026-08-13T10:00:00-03:00" },
+      { status: "OPEN", clientId: "c3", source: "Indicacao", productInterest: "Placa ACM", ownerName: "Ana", nextAction: "", nextFollowUp: null }
     ],
     quotes: [
       { status: "SENT", discountCents: 1000, marginPercent: 35, approvalRequired: true },
       { status: "APPROVED", totalPriceCents: 90000, discountCents: 3000, marginPercent: 25 },
       { status: "APPROVED", totalPriceCents: 150000, discountCents: 0, marginPercent: 45 }
     ],
-    orders: [{ soldValueCents: 120000, billedValueCents: 120000, receivedValueCents: 40000 }],
+    orders: [
+      { clientId: "c1", clientName: "Cliente A", clientSegment: "Varejo", soldValueCents: 120000, billedValueCents: 120000, receivedValueCents: 40000 },
+      { clientId: "c1", clientName: "Cliente A", clientSegment: "Varejo", soldValueCents: 80000, billedValueCents: 0, receivedValueCents: 0 },
+      { clientId: "c2", clientName: "Cliente B", clientSegment: "Industria", soldValueCents: 50000, billedValueCents: 0, receivedValueCents: 0 }
+    ],
     productionOrders: [
       { status: "IN_PROGRESS", promisedAt: "2026-08-12T10:00:00-03:00", reworks: [{ status: "OPEN" }], consumptions: [{ wasteQuantity: 2 }] },
       { status: "BLOCKED", promisedAt: "2026-08-14T10:00:00-03:00", reworks: [], consumptions: [] }
@@ -36,6 +40,9 @@ test("calcula indicadores comerciais e de qualidade da grafica", () => {
   assert.equal(result.metrics.opportunitiesOpen, 2);
   assert.equal(result.metrics.returnsToday, 1);
   assert.equal(result.metrics.qualityAlerts, 1);
+  assert.equal(result.metrics.clientsNew, 1);
+  assert.equal(result.metrics.clientsRecurring, 1);
+  assert.equal(result.metrics.clientsInactive, 1);
   assert.equal(result.metrics.quotesApproved, 2);
   assert.equal(result.metrics.averageTicketCents, 120000);
   assert.equal(result.metrics.averageMarginPercent, 35);
@@ -45,6 +52,11 @@ test("calcula indicadores comerciais e de qualidade da grafica", () => {
   assert.equal(result.metrics.productionBlocked, 1);
   assert.equal(result.metrics.deliveryOnTimePercent, 50);
   assert.equal(result.metrics.openReceivablesCents, 80000);
+  assert.equal(result.groups.salesBySource[0].label, "Instagram");
+  assert.equal(result.groups.salesByProduct[0].label, "Banner");
+  assert.equal(result.groups.salesByResponsible[0].label, "Ana");
+  assert.equal(result.groups.salesBySegment[0].label, "Varejo");
+  assert.equal(result.groups.revenueByClient[0].valueCents, 200000);
   assert.equal(result.metricNotes.find((item) => item.key === "openReceivablesCents")?.quality, "OK");
   assert.equal(result.metricNotes.find((item) => item.key === "deliveryOnTimePercent")?.quality, "OK");
 });
@@ -66,6 +78,7 @@ test("oculta indicadores financeiros quando o perfil nao tem permissao", () => {
   assert.equal(result.metrics.soldCents, null);
   assert.equal(result.metrics.averageTicketCents, null);
   assert.equal(result.metrics.discountsCents, null);
+  assert.deepEqual(result.groups.revenueByClient, []);
   assert.equal(result.metrics.openReceivablesCents, null);
   assert.equal(result.metricNotes.find((item) => item.key === "openReceivablesCents")?.quality, "RESTRICTED");
 });

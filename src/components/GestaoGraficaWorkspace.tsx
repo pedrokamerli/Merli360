@@ -108,6 +108,7 @@ export function GestaoGraficaWorkspace() {
   }, [data, search]);
 
   const metrics = data?.metrics || {};
+  const groups = data?.groups || {};
   const metricNotes = data?.metricNotes || [];
   const openOpportunities = (data?.opportunities || []).filter((item: AnyRow) => ["OPEN", "QUOTE_CREATED"].includes(item.status));
   const draftQuotes = (data?.quotes || []).filter((item: AnyRow) => item.status !== "APPROVED");
@@ -452,11 +453,22 @@ export function GestaoGraficaWorkspace() {
         <MetricCard label="Oportunidades abertas" value={String(metrics.opportunitiesOpen || 0)} hint="funil grafico" />
         <MetricCard label="Retornos hoje" value={String(metrics.returnsToday || 0)} hint={`${metrics.overdueReturns || 0} atrasados`} tone={metrics.overdueReturns ? "warn" : "default"} />
         <MetricCard label="Alertas de qualidade" value={String(metrics.qualityAlerts || 0)} hint="sem proximo passo completo" tone={metrics.qualityAlerts ? "danger" : "good"} />
+        <MetricCard label="Clientes novos" value={String(metrics.clientsNew || 0)} hint={`${metrics.clientsRecurring || 0} recorrentes`} />
+        <MetricCard label="Clientes inativos" value={String(metrics.clientsInactive || 0)} hint="com oportunidade sem pedido" tone={metrics.clientsInactive ? "warn" : "good"} />
         <MetricCard label="Orcamentos aprovados" value={String(metrics.quotesApproved || 0)} hint={`${metrics.quotesSent || 0} enviados/visualizados`} tone="good" />
         <MetricCard label="Ticket medio" value={metrics.averageTicketCents === null ? "Restrito" : brl(metrics.averageTicketCents || 0)} hint={`${metrics.approvalRequiredOpen || 0} aprovacoes abertas`} />
         <MetricCard label="Producao aberta" value={String(metrics.productionOpen || 0)} hint={`${metrics.productionDelayed || 0} atrasadas, ${metrics.productionBlocked || 0} bloqueadas`} tone={metrics.productionDelayed || metrics.productionBlocked ? "danger" : "default"} />
         <MetricCard label="Entregas abertas" value={String(metrics.deliveriesOpen || 0)} hint={metrics.deliveryOnTimePercent === null ? `${metrics.postSalesOpen || 0} pos-vendas` : `${metrics.deliveryOnTimePercent}% no prazo`} />
         <MetricCard label="Recebimento pendente" value={metrics.openReceivablesCents === null ? "Restrito" : brl(metrics.openReceivablesCents || 0)} hint={metrics.dataQuality || "valor aberto"} tone={metrics.overdueReceivablesCents ? "danger" : "warn"} />
+      </section>
+
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <GroupBox title="Vendas por origem" rows={groups.salesBySource || []} />
+        <GroupBox title="Vendas por produto" rows={groups.salesByProduct || []} />
+        <GroupBox title="Vendas por responsavel" rows={groups.salesByResponsible || []} />
+        <GroupBox title="Vendas por segmento" rows={groups.salesBySegment || []} money />
+        <GroupBox title="Resultado por produto" rows={groups.revenueByProduct || []} money />
+        <GroupBox title="Resultado por cliente" rows={groups.revenueByClient || []} money />
       </section>
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -903,6 +915,22 @@ function CatalogList({ title, rows, value }: { title: string; rows: AnyRow[]; va
         {!rows.length ? <p className="rounded-md bg-slate-50 p-3 text-xs font-bold text-slate-500">Nenhum cadastro ainda.</p> : null}
       </div>
     </div>
+  );
+}
+
+function GroupBox({ title, rows, money = false }: { title: string; rows: AnyRow[]; money?: boolean }) {
+  return (
+    <article className="rounded-lg border border-slate-200 bg-white p-3">
+      <h2 className="text-sm font-black text-slate-950">{title}</h2>
+      <div className="mt-3 space-y-2">
+        {rows.length ? rows.slice(0, 5).map((row: AnyRow) => (
+          <div key={row.label} className="flex items-center justify-between gap-3 text-xs font-bold">
+            <span className="truncate text-slate-600">{row.label}</span>
+            <span className="shrink-0 text-slate-950">{money ? `${row.count} | ${brl(row.valueCents || 0)}` : row.count}</span>
+          </div>
+        )) : <p className="rounded-md bg-slate-50 p-2 text-xs font-bold text-slate-500">Dados insuficientes.</p>}
+      </div>
+    </article>
   );
 }
 
