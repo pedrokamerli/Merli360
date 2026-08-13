@@ -36,7 +36,9 @@ fi
 log "deploy start: $LOCAL_SHA -> $REMOTE_SHA"
 git merge --ff-only origin/main >> "$LOG_FILE" 2>&1
 
-docker compose --env-file .env.production -f "$COMPOSE_FILE" up -d --build --no-deps "$SERVICE" >> "$LOG_FILE" 2>&1
+docker compose --env-file .env.production -f "$COMPOSE_FILE" build "$SERVICE" >> "$LOG_FILE" 2>&1
+docker rm -f "$SERVICE" >> "$LOG_FILE" 2>&1 || true
+docker compose --env-file .env.production -f "$COMPOSE_FILE" up -d --no-deps "$SERVICE" >> "$LOG_FILE" 2>&1
 
 NEW_SHA="$(git rev-parse HEAD)"
 log "deploy complete: $NEW_SHA"
