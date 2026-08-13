@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { catalogValidationStatus, isGraphicCatalogType, normalizeSettingValue, validatePercent } from "../src/lib/graphic-catalog";
+import { catalogValidationStatus, isGraphicCatalogType, normalizeGraphicSetting, normalizeSettingValue, validatePercent } from "../src/lib/graphic-catalog";
 
 test("valida tipos nativos do catalogo grafico", () => {
   assert.equal(isGraphicCatalogType("product"), true);
@@ -28,4 +28,12 @@ test("bloqueia percentual fora da faixa operacional", () => {
 test("marca custos zerados como pendentes de validacao", () => {
   assert.equal(catalogValidationStatus(true), "VALIDATED");
   assert.equal(catalogValidationStatus(false), "PENDING_VALIDATION");
+});
+
+test("valida politica de arquivos e LGPD da grafica", () => {
+  assert.equal(normalizeGraphicSetting("fileRetentionDays", " 1825 "), "1825");
+  assert.equal(normalizeGraphicSetting("fileLgpdClassification", "confidential"), "CONFIDENTIAL");
+  assert.equal(normalizeGraphicSetting("fileRemovalPolicy", "soft_delete_only"), "SOFT_DELETE_ONLY");
+  assert.throws(() => normalizeGraphicSetting("fileRetentionDays", "7"), /30 e 3650/);
+  assert.throws(() => normalizeGraphicSetting("fileLgpdClassification", "livre"), /invalida/);
 });

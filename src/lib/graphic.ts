@@ -129,7 +129,10 @@ export async function ensureGraphicDefaults(tenantId: string) {
     ["fixedCostRatePercent", "8"],
     ["taxRatePercent", "6"],
     ["commissionPercent", "3"],
-    ["quantityMultiplierEnabled", "true"]
+    ["quantityMultiplierEnabled", "true"],
+    ["fileRetentionDays", "1825"],
+    ["fileLgpdClassification", "CONFIDENTIAL"],
+    ["fileRemovalPolicy", "SOFT_DELETE_ONLY"]
   ];
 
   await prisma.$transaction(
@@ -192,6 +195,9 @@ export async function getGraphicSettings(tenantId: string) {
     fixedCostRatePercent: Number(value.fixedCostRatePercent || 8),
     taxRatePercent: Number(value.taxRatePercent || 6),
     commissionPercent: Number(value.commissionPercent || 3),
-    quantityMultiplierEnabled: value.quantityMultiplierEnabled !== "false"
+    quantityMultiplierEnabled: value.quantityMultiplierEnabled !== "false",
+    fileRetentionDays: Number(value.fileRetentionDays || 1825),
+    fileLgpdClassification: value.fileLgpdClassification || "CONFIDENTIAL",
+    fileRemovalPolicy: value.fileRemovalPolicy || "SOFT_DELETE_ONLY"
   };
 }

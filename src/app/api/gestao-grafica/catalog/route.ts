@@ -3,7 +3,7 @@ import { requireApiUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { assertGraphicAccess, assertGraphicPermission, cents, ensureGraphicDefaults, parseGraphicRole } from "@/lib/graphic";
-import { catalogValidationStatus, isGraphicCatalogType, normalizeSettingValue, validatePercent } from "@/lib/graphic-catalog";
+import { catalogValidationStatus, isGraphicCatalogType, normalizeGraphicSetting, normalizeSettingValue, validatePercent } from "@/lib/graphic-catalog";
 
 export const dynamic = "force-dynamic";
 
@@ -135,10 +135,11 @@ export async function POST(request: NextRequest) {
         const targetUser = await db.user.findFirst({ where: { id: targetUserId, tenantId: user.tenantId }, select: { id: true } });
         if (!targetUser) return NextResponse.json({ error: "Usuario nao encontrado neste tenant." }, { status: 404 });
       }
+      const value = key.startsWith("userRole:") ? normalizeSettingValue(body.value) : normalizeGraphicSetting(key, body.value);
       item = await db.graphicSetting.upsert({
         where: { tenantId_key: { tenantId: user.tenantId, key } },
-        update: { value: normalizeSettingValue(body.value), updatedById: user.id },
-        create: { tenantId: user.tenantId, key, value: normalizeSettingValue(body.value), createdById: user.id, updatedById: user.id }
+        update: { value, updatedById: user.id },
+        create: { tenantId: user.tenantId, key, value, createdById: user.id, updatedById: user.id }
       });
     }
 
@@ -249,9 +250,10 @@ export async function PUT(request: NextRequest) {
         }
       });
     } else {
+      const value = String(existing.key || "").startsWith("userRole:") ? normalizeSettingValue(body.value) : normalizeGraphicSetting(existing.key, body.value);
       item = await db.graphicSetting.update({
         where: { id },
-        data: { value: normalizeSettingValue(body.value), status: String(body.status || existing.status), updatedById: user.id }
+        data: { value, status: String(body.status || existing.status), updatedById: user.id }
       });
     }
 

@@ -591,6 +591,33 @@ export function GestaoGraficaWorkspace() {
           </div>
           {data?.canManageSettings ? (
             <div className="rounded-lg border border-slate-200 bg-white p-3">
+              <h3 className="font-black text-slate-950">Arquivos e LGPD</h3>
+              <div className="mt-3 grid gap-2">
+                <label className="grid grid-cols-[1fr_90px] items-center gap-2 text-xs font-black text-slate-500">
+                  Retencao (dias)
+                  <input className={inputClass} defaultValue={settingMap.fileRetentionDays || "1825"} onBlur={(event) => saveCatalog("setting", { key: "fileRetentionDays", value: event.target.value || "1825" })} />
+                </label>
+                <label className="grid gap-1 text-xs font-black text-slate-500">
+                  Classificacao
+                  <select className={inputClass} defaultValue={settingMap.fileLgpdClassification || "CONFIDENTIAL"} onChange={(event) => saveCatalog("setting", { key: "fileLgpdClassification", value: event.target.value })}>
+                    <option value="INTERNAL">Interno</option>
+                    <option value="CONFIDENTIAL">Confidencial</option>
+                    <option value="SENSITIVE">Sensivel</option>
+                  </select>
+                </label>
+                <label className="grid gap-1 text-xs font-black text-slate-500">
+                  Remocao
+                  <select className={inputClass} defaultValue={settingMap.fileRemovalPolicy || "SOFT_DELETE_ONLY"} onChange={(event) => saveCatalog("setting", { key: "fileRemovalPolicy", value: event.target.value })}>
+                    <option value="SOFT_DELETE_ONLY">Remocao logica</option>
+                    <option value="ADMIN_REVIEW">Revisao do admin</option>
+                    <option value="LEGAL_HOLD">Retencao legal</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+          ) : null}
+          {data?.canManageSettings ? (
+            <div className="rounded-lg border border-slate-200 bg-white p-3">
               <h3 className="font-black text-slate-950">Papeis da equipe</h3>
               <div className="mt-3 grid gap-2">
                 {users.length ? users.map((item: AnyRow) => (

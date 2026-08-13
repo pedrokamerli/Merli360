@@ -40,8 +40,12 @@ export async function GET(request: NextRequest) {
       where: { tenantId: user.tenantId, linkedModel: "production", linkedId: { in: productionOrders.map((item: any) => item.id) }, status: "ACTIVE" },
       orderBy: { createdAt: "desc" }
     });
+    const attachmentRows = productionAttachments.length
+      ? await db.attachment.findMany({ where: { tenantId: user.tenantId, id: { in: productionAttachments.map((item: any) => item.attachmentId) } } })
+      : [];
+    const attachmentsById = new Map(attachmentRows.map((item: any) => [item.id, item]));
     const attachmentsByProduction = productionAttachments.reduce((acc: Record<string, any[]>, item: any) => {
-      acc[item.linkedId] = [...(acc[item.linkedId] || []), item];
+      acc[item.linkedId] = [...(acc[item.linkedId] || []), { ...item, attachment: attachmentsById.get(item.attachmentId), url: `/api/attachments/${item.attachmentId}` }];
       return acc;
     }, {});
     const productionRows = productionOrders.map((item: any) => ({ ...item, attachments: attachmentsByProduction[item.id] || [] }));
