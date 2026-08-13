@@ -11,5 +11,6 @@ Atualizado em: 13/08/2026
 - Definir quais usuarios `studium`, `ana` e `marina` terao `gestao-grafica` em producao.
 - Configurar papeis operacionais reais por usuario em `GraphicSetting` depois da definicao do dono da operacao.
 - Definir se todas as etapas de producao serao obrigatorias por produto ou se algumas podem ser puladas por tipo de servico.
+- Definir regras finais para importacao de `CLIENTES`, `PEDIDOS`, `PRODUCAO` e `FAIXAS_QTD`.
 - Adotar ESLint real em ciclo futuro. Neste momento `npm run lint` e nao interativo e executa `tsc --noEmit`.
 - Ampliar a suite `npm run test` para cobrir mais fluxos integrados do modulo grafica, alem das regras puras ja cobertas.

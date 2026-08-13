@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Banknote, CheckCircle2, ClipboardList, Factory, FileText, Loader2, PackageCheck, Plus, RefreshCw, Search, Settings, Star } from "lucide-react";
+import { AlertTriangle, Banknote, CheckCircle2, ClipboardList, Factory, FileText, Loader2, PackageCheck, Plus, RefreshCw, Search, Settings, Star, Upload } from "lucide-react";
 import { MetricCard } from "@/components/MetricCard";
 
 type AnyRow = Record<string, any>;
@@ -64,6 +64,8 @@ export function GestaoGraficaWorkspace() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [search, setSearch] = useState("");
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importPreview, setImportPreview] = useState<AnyRow | null>(null);
   const [opportunityForm, setOpportunityForm] = useState(opportunityInitial);
   const [quoteForm, setQuoteForm] = useState({ ...quoteInitial, validUntil: todayPlus(7) });
 
@@ -118,6 +120,31 @@ export function GestaoGraficaWorkspace() {
     setMessage("Cadastro grafico salvo.");
     await load();
     return true;
+  }
+
+  async function importSpreadsheet(confirm = false) {
+    if (!importFile) return;
+    setSaving(true);
+    setMessage("");
+    const form = new FormData();
+    form.append("file", importFile);
+    if (confirm) form.append("confirm", "true");
+    const response = await fetch("/api/gestao-grafica/import", { method: "POST", body: form });
+    const result = await response.json();
+    setSaving(false);
+    if (!response.ok) {
+      setMessage(result.error || "Nao foi possivel importar a planilha.");
+      return;
+    }
+    if (!confirm) {
+      setImportPreview(result);
+      setMessage(`Previa carregada: ${result.total || 0} itens encontrados.`);
+      return;
+    }
+    setImportPreview(null);
+    setImportFile(null);
+    setMessage(`Importacao concluida: ${result.total || 0} itens processados.`);
+    await load();
   }
 
   async function createOpportunity(event: FormEvent<HTMLFormElement>) {
@@ -303,6 +330,42 @@ export function GestaoGraficaWorkspace() {
         <div className="mb-4 flex items-center gap-2">
           <Settings size={18} className="text-emerald-600" />
           <h2 className="text-lg font-black text-slate-950">Produtos, custos e parametros</h2>
+        </div>
+        <div className="mb-4 rounded-lg border border-slate-200 bg-white p-3">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 className="font-black text-slate-950">Importar base da grafica</h3>
+              <p className="text-xs font-semibold text-slate-500">Abas aceitas neste ciclo: PARAMETROS, MATERIAIS, PROCESSOS e PRODUTOS.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <label className="secondary-action inline-flex cursor-pointer items-center gap-2 px-3 py-2 text-xs">
+                <Upload size={15} /> Excel
+                <input className="hidden" type="file" accept=".xlsx,.xls" onChange={(event) => { setImportFile(event.target.files?.[0] || null); setImportPreview(null); }} />
+              </label>
+              <button className="secondary-action px-3 py-2 text-xs" type="button" disabled={!importFile || saving} onClick={() => importSpreadsheet(false)}>Ler previa</button>
+              <button className="primary-action px-3 py-2 text-xs" type="button" disabled={!importPreview || saving} onClick={() => importSpreadsheet(true)}>Confirmar</button>
+            </div>
+          </div>
+          {importFile ? <p className="mt-2 text-xs font-bold text-slate-500">{importFile.name}</p> : null}
+          {importPreview ? (
+            <div className="mt-3 grid gap-3 md:grid-cols-[160px_1fr]">
+              <div className="rounded-md bg-slate-50 p-3 text-xs font-bold text-slate-600">
+                <p>Total: {importPreview.total || 0}</p>
+                <p>Produtos: {importPreview.summary?.product || 0}</p>
+                <p>Materiais: {importPreview.summary?.material || 0}</p>
+                <p>Processos: {importPreview.summary?.process || 0}</p>
+                <p>Parametros: {importPreview.summary?.setting || 0}</p>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                {(importPreview.items || []).slice(0, 8).map((item: AnyRow, index: number) => (
+                  <div key={`${item.type}-${item.key}-${index}`} className="rounded-md border border-slate-100 p-2">
+                    <p className="text-xs font-black text-slate-700">{item.name || item.key}</p>
+                    <p className="text-[10px] font-bold uppercase text-slate-400">{item.type} | {item.sheet}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </div>
         <div className="grid gap-4 xl:grid-cols-4">
           <CatalogBox title="Produto" fields={[
