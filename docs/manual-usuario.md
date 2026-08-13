@@ -10,5 +10,8 @@
 6. Aprove o orcamento quando o cliente confirmar.
 7. O sistema cria pedido e ordem de producao automaticamente.
 8. Acompanhe producao, entrega e recebimento pelo painel.
+9. Marque a entrega como entregue ou aceita.
+10. Registre recebimentos parciais ou totais.
+11. Feche o pos-venda com satisfacao de 1 a 5.
 
 Quando um indicador aparecer como `Dados insuficientes`, significa que ainda nao ha registros confiaveis para o calculo.

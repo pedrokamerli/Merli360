@@ -11,7 +11,7 @@ O modulo Gestao da Grafica controla o fluxo de contato, cliente, oportunidade, o
 
 ## Permissao
 
-A chave do modulo e `gestao-grafica`. O super admin tambem tem acesso. Usuarios com `moduleAccess=["crm"]` continuam vendo o CRM comercial, mas precisam de `gestao-grafica` ou `all` para operar o modulo completo.
+A chave do modulo e `gestao-grafica`. O super admin tambem tem acesso. Neste ciclo de transicao, usuarios com `moduleAccess=["crm"]` tambem acessam o modulo para preservar os acessos ja integrados.
 
 ## Fluxo funcional deste ciclo
 
@@ -24,6 +24,9 @@ A chave do modulo e `gestao-grafica`. O super admin tambem tem acesso. Usuarios 
 7. Separacao entre valor vendido, faturado e recebido.
 8. Link compartilhavel de orcamento por token.
 9. PDF comercial simples do orcamento, sem expor custos internos.
+10. Entrega pendente criada automaticamente ao aprovar orcamento.
+11. Entrega concluida cria pos-venda aberto.
+12. Recebimento parcial atualiza valor recebido, pendente e status sem alterar o valor vendido.
 
 ## Dados insuficientes
 

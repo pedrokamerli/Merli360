@@ -7,8 +7,11 @@
 - Desconto acima do limite do tenant exige aprovacao.
 - Preco abaixo da margem minima exige aprovacao.
 - Orcamento aprovado gera pedido e ordem de producao sem redigitacao.
+- Orcamento aprovado gera entrega pendente e recebimento financeiro vinculado.
 - Pedido preserva snapshot comercial e de custo do orcamento aprovado.
 - Alteracoes posteriores em produto, material ou processo nao alteram pedidos antigos.
+- Recebimento parcial deve manter valor pendente e status corretos.
+- Entrega concluida deve abrir pos-venda automaticamente.
 - Registros transacionais devem ser cancelados com motivo, nao apagados.
 - Mudancas criticas registram auditoria.
 - Todas as consultas e gravacoes usam o `tenantId` do usuario autenticado.

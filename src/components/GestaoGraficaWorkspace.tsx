@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Banknote, CheckCircle2, ClipboardList, Factory, FileText, Loader2, Plus, RefreshCw, Search } from "lucide-react";
+import { AlertTriangle, Banknote, CheckCircle2, ClipboardList, Factory, FileText, Loader2, PackageCheck, Plus, RefreshCw, Search, Star } from "lucide-react";
 import { MetricCard } from "@/components/MetricCard";
 
 type AnyRow = Record<string, any>;
@@ -91,6 +91,9 @@ export function GestaoGraficaWorkspace() {
   const openOpportunities = (data?.opportunities || []).filter((item: AnyRow) => ["OPEN", "QUOTE_CREATED"].includes(item.status));
   const draftQuotes = (data?.quotes || []).filter((item: AnyRow) => item.status !== "APPROVED");
   const productionRows = data?.productionOrders || [];
+  const deliveryRows = data?.deliveries || [];
+  const receivableRows = data?.receivables || [];
+  const postSaleRows = data?.postSales || [];
 
   async function createOpportunity(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -169,6 +172,63 @@ export function GestaoGraficaWorkspace() {
     await load();
   }
 
+  async function updateDelivery(id: string, status: string) {
+    const note = status === "COMPLAINT" ? prompt("Informe a reclamacao ou motivo") || "" : "";
+    setSaving(true);
+    const response = await fetch("/api/gestao-grafica/deliveries", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, status, note, deliveredAt: new Date().toISOString().slice(0, 10) })
+    });
+    const payload = await response.json();
+    setSaving(false);
+    if (!response.ok) {
+      setMessage(payload.error || "Nao foi possivel atualizar a entrega.");
+      return;
+    }
+    setMessage(status === "DELIVERED" || status === "ACCEPTED" ? "Entrega registrada e pos-venda criado." : "Entrega atualizada.");
+    await load();
+  }
+
+  async function registerPayment(id: string) {
+    const amount = prompt("Valor recebido");
+    if (!amount) return;
+    setSaving(true);
+    const response = await fetch("/api/gestao-grafica/receivables", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, amount, method: "Manual", paidAt: new Date().toISOString().slice(0, 10) })
+    });
+    const payload = await response.json();
+    setSaving(false);
+    if (!response.ok) {
+      setMessage(payload.error || "Nao foi possivel registrar o recebimento.");
+      return;
+    }
+    setMessage(payload.pendingCents > 0 ? `Recebimento parcial registrado. Pendente: ${brl(payload.pendingCents)}.` : "Recebimento quitado.");
+    await load();
+  }
+
+  async function closePostSale(id: string) {
+    const satisfaction = prompt("Satisfacao de 1 a 5", "5");
+    if (!satisfaction) return;
+    const note = prompt("Observacao do pos-venda", "Cliente contatado apos entrega.") || "";
+    setSaving(true);
+    const response = await fetch("/api/gestao-grafica/post-sales", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, satisfaction, note, status: "DONE" })
+    });
+    const payload = await response.json();
+    setSaving(false);
+    if (!response.ok) {
+      setMessage(payload.error || "Nao foi possivel fechar o pos-venda.");
+      return;
+    }
+    setMessage("Pos-venda registrado.");
+    await load();
+  }
+
   return (
     <div className="space-y-5">
       <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -191,6 +251,7 @@ export function GestaoGraficaWorkspace() {
         <MetricCard label="Alertas de qualidade" value={String(metrics.qualityAlerts || 0)} hint="sem proximo passo completo" tone={metrics.qualityAlerts ? "danger" : "good"} />
         <MetricCard label="Orcamentos aprovados" value={String(metrics.quotesApproved || 0)} hint={`${metrics.quotesSent || 0} enviados/visualizados`} tone="good" />
         <MetricCard label="Producao aberta" value={String(metrics.productionOpen || 0)} hint="ordens pendentes" />
+        <MetricCard label="Entregas abertas" value={String(metrics.deliveriesOpen || 0)} hint={`${metrics.postSalesOpen || 0} pos-vendas`} />
         <MetricCard label="Recebimento pendente" value={brl(metrics.openReceivablesCents || 0)} hint={metrics.dataQuality || "valor aberto"} tone={metrics.overdueReceivablesCents ? "danger" : "warn"} />
       </section>
 
@@ -336,6 +397,67 @@ export function GestaoGraficaWorkspace() {
           <MetricCard label="Valor vendido" value={brl(metrics.soldCents || 0)} />
           <MetricCard label="Valor faturado" value={brl(metrics.billedCents || 0)} />
           <MetricCard label="Valor recebido" value={brl(metrics.receivedCents || 0)} tone="good" />
+        </div>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-3">
+        <div className="surface-panel p-4">
+          <div className="mb-4 flex items-center gap-2">
+            <PackageCheck size={18} className="text-emerald-600" />
+            <h2 className="text-lg font-black text-slate-950">Entregas</h2>
+          </div>
+          <div className="space-y-2">
+            {deliveryRows.length ? deliveryRows.map((item: AnyRow) => (
+              <article key={item.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                <h3 className="font-black text-slate-950">Pedido #{item.order?.number || "-"}</h3>
+                <p className="text-xs font-semibold text-slate-500">{item.method} | {item.status} | prevista {day(item.expectedAt)}</p>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button className="secondary-action py-2 text-xs" type="button" onClick={() => updateDelivery(item.id, "SCHEDULED")}>Agendar</button>
+                  <button className="primary-action py-2 text-xs" type="button" onClick={() => updateDelivery(item.id, "DELIVERED")}>Entregue</button>
+                  <button className="secondary-action py-2 text-xs" type="button" onClick={() => updateDelivery(item.id, "ACCEPTED")}>Aceite</button>
+                  <button className="secondary-action py-2 text-xs" type="button" onClick={() => updateDelivery(item.id, "COMPLAINT")}>Reclamacao</button>
+                </div>
+              </article>
+            )) : <p className="rounded-lg bg-slate-50 p-4 text-sm font-bold text-slate-500">Nenhuma entrega pendente.</p>}
+          </div>
+        </div>
+
+        <div className="surface-panel p-4">
+          <div className="mb-4 flex items-center gap-2">
+            <Banknote size={18} className="text-emerald-600" />
+            <h2 className="text-lg font-black text-slate-950">Recebimentos</h2>
+          </div>
+          <div className="space-y-2">
+            {receivableRows.length ? receivableRows.map((item: AnyRow) => (
+              <article key={item.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                <h3 className="font-black text-slate-950">{brl(item.amountCents - item.receivedCents)} pendente</h3>
+                <p className="text-xs font-semibold text-slate-500">Status {item.status} | vence {day(item.dueDate)}</p>
+                <p className="mt-1 text-xs font-semibold text-slate-500">Recebido {brl(item.receivedCents)} de {brl(item.amountCents)}</p>
+                {item.status !== "PAID" ? (
+                  <button className="primary-action mt-3 inline-flex w-full items-center justify-center py-2 text-xs" type="button" onClick={() => registerPayment(item.id)}>Registrar recebimento</button>
+                ) : null}
+              </article>
+            )) : <p className="rounded-lg bg-slate-50 p-4 text-sm font-bold text-slate-500">Nenhum recebimento grafico.</p>}
+          </div>
+        </div>
+
+        <div className="surface-panel p-4">
+          <div className="mb-4 flex items-center gap-2">
+            <Star size={18} className="text-amber-500" />
+            <h2 className="text-lg font-black text-slate-950">Pos-venda</h2>
+          </div>
+          <div className="space-y-2">
+            {postSaleRows.length ? postSaleRows.map((item: AnyRow) => (
+              <article key={item.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                <h3 className="font-black text-slate-950">Pedido #{item.order?.number || "-"}</h3>
+                <p className="text-xs font-semibold text-slate-500">Status {item.status} | satisfacao {item.satisfaction || "-"}</p>
+                <p className="mt-1 text-sm text-slate-600">{item.note || "Sem observacao."}</p>
+                {item.status === "OPEN" ? (
+                  <button className="secondary-action mt-3 inline-flex w-full items-center justify-center py-2 text-xs" type="button" onClick={() => closePostSale(item.id)}>Registrar contato</button>
+                ) : null}
+              </article>
+            )) : <p className="rounded-lg bg-slate-50 p-4 text-sm font-bold text-slate-500">Nenhum pos-venda aberto.</p>}
+          </div>
         </div>
       </section>
     </div>

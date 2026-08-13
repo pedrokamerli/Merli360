@@ -178,6 +178,8 @@ export async function PUT(request: NextRequest) {
       });
       const dueDate = new Date();
       dueDate.setDate(dueDate.getDate() + 7);
+      const expectedDelivery = new Date();
+      expectedDelivery.setDate(expectedDelivery.getDate() + 7);
       const title = await tx.financialTitle.create({
         data: {
           tenantId: user.tenantId,
@@ -193,6 +195,7 @@ export async function PUT(request: NextRequest) {
         }
       });
       await tx.graphicReceivable.create({ data: { tenantId: user.tenantId, orderId: order.id, financialTitleId: title.id, dueDate, amountCents: quote.totalPriceCents, createdById: user.id, updatedById: user.id } });
+      await tx.graphicDelivery.create({ data: { tenantId: user.tenantId, orderId: order.id, method: "RETIRADA", expectedAt: expectedDelivery, status: "PENDING", createdById: user.id, updatedById: user.id } });
       return { quote: approvedQuote, order, production };
     });
 
