@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Banknote, CheckCircle2, ClipboardList, Download, Factory, FileText, Loader2, PackageCheck, Plus, RefreshCw, Search, Settings, Star, Upload } from "lucide-react";
+import { AlertTriangle, Banknote, CheckCircle2, ClipboardList, Download, Factory, FileText, Loader2, PackageCheck, Plus, RefreshCw, Search, Settings, Star, Trash2, Upload } from "lucide-react";
 import { MetricCard } from "@/components/MetricCard";
 
 type AnyRow = Record<string, any>;
@@ -350,6 +350,26 @@ export function GestaoGraficaWorkspace() {
       return false;
     }
     setMessage("Arquivo anexado com seguranca.");
+    await load();
+    return true;
+  }
+
+  async function removeGraphicAttachment(id: string) {
+    if (!confirm("Remover este arquivo da ficha da grafica? O historico sera mantido.")) return false;
+    setSaving(true);
+    setMessage("");
+    const response = await fetch("/api/gestao-grafica/attachments", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, reason: "Removido pela tela de producao" })
+    });
+    const result = await response.json();
+    setSaving(false);
+    if (!response.ok) {
+      setMessage(result.error || "Nao foi possivel remover o arquivo.");
+      return false;
+    }
+    setMessage("Arquivo removido da ficha. O historico foi preservado.");
     await load();
     return true;
   }
@@ -782,7 +802,7 @@ export function GestaoGraficaWorkspace() {
           </div>
           <div className="space-y-2">
             {productionRows.length ? productionRows.map((item: AnyRow) => (
-              <ProductionCard key={item.id} item={item} materials={materials} onStatus={updateProduction} onAction={updateProductionAction} onUpload={uploadGraphicAttachment} />
+              <ProductionCard key={item.id} item={item} materials={materials} onStatus={updateProduction} onAction={updateProductionAction} onUpload={uploadGraphicAttachment} onRemoveAttachment={removeGraphicAttachment} />
             )) : <p className="rounded-lg bg-slate-50 p-4 text-sm font-bold text-slate-500">Nenhuma ordem de producao.</p>}
           </div>
         </div>
@@ -946,7 +966,7 @@ function parseChecklist(value: unknown) {
   }
 }
 
-function ProductionCard({ item, materials, onStatus, onAction, onUpload }: { item: AnyRow; materials: AnyRow[]; onStatus: (id: string, status: string, extra?: AnyRow) => Promise<void>; onAction: (id: string, payload: AnyRow, success?: string) => Promise<boolean>; onUpload: (file: File, linkedModel: string, linkedId: string, purpose?: string) => Promise<boolean> }) {
+function ProductionCard({ item, materials, onStatus, onAction, onUpload, onRemoveAttachment }: { item: AnyRow; materials: AnyRow[]; onStatus: (id: string, status: string, extra?: AnyRow) => Promise<void>; onAction: (id: string, payload: AnyRow, success?: string) => Promise<boolean>; onUpload: (file: File, linkedModel: string, linkedId: string, purpose?: string) => Promise<boolean>; onRemoveAttachment: (id: string) => Promise<boolean> }) {
   const checklist = parseChecklist(item.checklist);
   const checklistItems = [
     ["arte", "Arte"],
@@ -1004,6 +1024,27 @@ function ProductionCard({ item, materials, onStatus, onAction, onUpload }: { ite
           </label>
         ))}
       </div>
+
+      {(item.attachments || []).length ? (
+        <div className="mt-3 space-y-2 rounded-md bg-slate-50 p-2">
+          {(item.attachments || []).map((file: AnyRow) => (
+            <div key={file.id} className="flex items-center justify-between gap-2 rounded-md bg-white px-2 py-2 text-xs">
+              <div className="min-w-0">
+                <p className="truncate font-black text-slate-700">{file.attachment?.originalName || "Arquivo da producao"}</p>
+                <p className="font-semibold text-slate-400">{file.purpose || "OTHER"} | {Math.ceil((file.attachment?.sizeBytes || 0) / 1024)} KB</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <a className="secondary-action grid h-8 w-8 place-items-center p-0" href={file.url || `/api/attachments/${file.attachmentId}`} target="_blank" rel="noreferrer" title="Abrir arquivo">
+                  <Download className="h-4 w-4" />
+                </a>
+                <button className="secondary-action grid h-8 w-8 place-items-center p-0 text-rose-600" onClick={() => onRemoveAttachment(file.id)} type="button" title="Remover da ficha">
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       <div className="mt-3 space-y-2">
         {(item.steps || []).slice(0, 4).map((step: AnyRow) => (

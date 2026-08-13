@@ -100,3 +100,42 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: status === 403 ? "Seu perfil nao permite anexar arquivos na grafica." : "Nao foi possivel anexar arquivo da grafica.", detail: process.env.NODE_ENV === "production" ? undefined : String(error?.message || error) }, { status });
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const user = await requireApiUser();
+    await assertGraphicPermission(user, "production:update");
+    const body = await request.json().catch(() => ({}));
+    const id = String(body.id || "");
+    const reason = String(body.reason || "Removido da ficha da grafica.").trim().slice(0, 300);
+    if (!id) return NextResponse.json({ error: "Informe o arquivo que sera removido." }, { status: 400 });
+
+    const db = prisma as any;
+    const item = await db.graphicAttachment.findFirst({
+      where: { id, tenantId: user.tenantId, status: "ACTIVE" }
+    });
+    if (!item) return NextResponse.json({ error: "Arquivo da grafica nao encontrado." }, { status: 404 });
+
+    const linked = await assertLinkedRecord(db, user.tenantId, item.linkedModel, item.linkedId);
+    if (!linked) return NextResponse.json({ error: "Registro vinculado nao encontrado." }, { status: 404 });
+
+    const updated = await db.graphicAttachment.update({
+      where: { id: item.id },
+      data: { status: "INACTIVE", updatedById: user.id }
+    });
+
+    await audit({
+      tenantId: user.tenantId,
+      userId: user.id,
+      action: "graphic_remove_attachment",
+      entity: "GraphicAttachment",
+      entityId: item.id,
+      request,
+      metadata: { linkedModel: item.linkedModel, linkedId: item.linkedId, attachmentId: item.attachmentId, reason }
+    });
+    return NextResponse.json({ item: updated });
+  } catch (error: any) {
+    const status = error?.message === "UNAUTHORIZED" ? 401 : error?.message === "FORBIDDEN_GRAPHIC_PERMISSION" || error?.message === "FORBIDDEN_MODULE" ? 403 : 500;
+    return NextResponse.json({ error: status === 403 ? "Seu perfil nao permite remover arquivos da grafica." : "Nao foi possivel remover arquivo da grafica.", detail: process.env.NODE_ENV === "production" ? undefined : String(error?.message || error) }, { status });
+  }
+}

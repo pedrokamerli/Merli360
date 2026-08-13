@@ -38,3 +38,7 @@ export function validateGraphicAttachment(file: { name: string; type: string; si
   if (file.size > graphicAttachmentMaxSizeBytes) return "Arquivo acima de 10MB.";
   return null;
 }
+
+export function isActiveGraphicAttachment(status: unknown) {
+  return String(status || "ACTIVE").toUpperCase() === "ACTIVE";
+}
