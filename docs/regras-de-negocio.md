@@ -22,6 +22,9 @@
 - Percentuais operacionais, como perda prevista, devem ficar entre 0 e 100.
 - Recebimento parcial deve manter valor pendente e status corretos.
 - Entrega concluida deve abrir pos-venda automaticamente.
+- Pos-venda deve validar satisfacao entre 1 e 5.
+- Pos-venda com satisfacao ate 3, reclamacao ou pedido de recorrencia deve criar nova oportunidade.
+- Pos-venda com proximo passo e data deve criar tarefa de retorno.
 - Registros transacionais devem ser cancelados com motivo, nao apagados.
 - Mudancas criticas registram auditoria.
 - Todas as consultas e gravacoes usam o `tenantId` do usuario autenticado.

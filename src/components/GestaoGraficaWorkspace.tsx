@@ -371,11 +371,15 @@ export function GestaoGraficaWorkspace() {
     const satisfaction = prompt("Satisfacao de 1 a 5", "5");
     if (!satisfaction) return;
     const note = prompt("Observacao do pos-venda", "Cliente contatado apos entrega.") || "";
+    const complaint = Number(satisfaction) <= 3 ? prompt("Reclamacao ou ponto de atencao", note) || "" : "";
+    const createOpportunity = confirm("Criar nova oportunidade/tarefa a partir deste pos-venda?");
+    const nextAction = createOpportunity ? prompt("Proximo passo", complaint ? "Resolver reclamacao do cliente" : "Apresentar nova oferta") || "" : "";
+    const nextFollowUp = createOpportunity && nextAction ? prompt("Data do retorno (AAAA-MM-DD)", todayPlus(3)) || "" : "";
     setSaving(true);
     const response = await fetch("/api/gestao-grafica/post-sales", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, satisfaction, note, status: "DONE" })
+      body: JSON.stringify({ id, satisfaction, note, complaint, createOpportunity, nextAction, nextFollowUp, status: "DONE" })
     });
     const payload = await response.json();
     setSaving(false);
@@ -383,7 +387,7 @@ export function GestaoGraficaWorkspace() {
       setMessage(payload.error || "Nao foi possivel fechar o pos-venda.");
       return;
     }
-    setMessage("Pos-venda registrado.");
+    setMessage(payload.newOpportunity ? "Pos-venda registrado e nova oportunidade criada." : "Pos-venda registrado.");
     await load();
   }
 
@@ -750,6 +754,7 @@ export function GestaoGraficaWorkspace() {
                 <h3 className="font-black text-slate-950">Pedido #{item.order?.number || "-"}</h3>
                 <p className="text-xs font-semibold text-slate-500">Status {item.status} | satisfacao {item.satisfaction || "-"}</p>
                 <p className="mt-1 text-sm text-slate-600">{item.note || "Sem observacao."}</p>
+                {item.newOpportunityId ? <p className="mt-2 rounded-md bg-emerald-50 p-2 text-xs font-bold text-emerald-700">Nova oportunidade criada.</p> : null}
                 {item.status === "OPEN" ? (
                   <button className="secondary-action mt-3 inline-flex w-full items-center justify-center py-2 text-xs" type="button" onClick={() => closePostSale(item.id)}>Registrar contato</button>
                 ) : null}

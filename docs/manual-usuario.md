@@ -22,6 +22,7 @@
 18. Marque a entrega como entregue ou aceita.
 19. Registre recebimentos parciais ou totais.
 20. Feche o pos-venda com satisfacao de 1 a 5.
+21. Se houver reclamacao, baixa satisfacao ou chance de nova venda, crie uma nova oportunidade/tarefa pelo proprio contato de pos-venda.
 
 Quando um indicador aparecer como `Dados insuficientes`, significa que ainda nao ha registros confiaveis para o calculo.
 Abra os detalhes do indicador para conferir formula, fonte, periodo e criterio usado no painel.
