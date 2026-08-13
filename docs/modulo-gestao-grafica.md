@@ -30,6 +30,7 @@ A chave do modulo e `gestao-grafica`. O super admin tambem tem acesso. Neste cic
 13. Cadastro nativo de produtos graficos, materiais, processos e parametros comerciais por tenant.
 14. Historico de custo de material criado ao cadastrar ou alterar custo manualmente.
 15. Produto cadastrado pode ser vinculado ao item do orcamento, preservando o snapshot comercial no pedido aprovado.
+16. Acoes criticas protegidas no backend por perfil operacional da grafica.
 
 ## Dados insuficientes
 

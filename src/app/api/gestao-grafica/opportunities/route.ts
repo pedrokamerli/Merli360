@@ -2,14 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
-import { assertGraphicAccess, cents, dateOrNull, ensureGraphicDefaults } from "@/lib/graphic";
+import { assertGraphicPermission, cents, dateOrNull, ensureGraphicDefaults } from "@/lib/graphic";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   try {
     const user = await requireApiUser();
-    assertGraphicAccess(user);
+    await assertGraphicPermission(user, "opportunity:write");
     await ensureGraphicDefaults(user.tenantId);
     const body = await request.json();
     const db = prisma as any;
@@ -65,6 +65,7 @@ export async function POST(request: NextRequest) {
     await audit({ tenantId: user.tenantId, userId: user.id, action: "graphic_create_opportunity", entity: "GraphicOpportunity", entityId: opportunity.id, request });
     return NextResponse.json({ item: opportunity, client });
   } catch (error: any) {
-    return NextResponse.json({ error: "Nao foi possivel criar a oportunidade.", detail: process.env.NODE_ENV === "production" ? undefined : String(error?.message || error) }, { status: error?.message === "UNAUTHORIZED" ? 401 : 500 });
+    const status = error?.message === "UNAUTHORIZED" ? 401 : error?.message === "FORBIDDEN_GRAPHIC_PERMISSION" || error?.message === "FORBIDDEN_MODULE" ? 403 : 500;
+    return NextResponse.json({ error: status === 403 ? "Seu perfil nao permite criar oportunidades." : "Nao foi possivel criar a oportunidade.", detail: process.env.NODE_ENV === "production" ? undefined : String(error?.message || error) }, { status });
   }
 }

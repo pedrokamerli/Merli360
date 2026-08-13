@@ -20,3 +20,4 @@
 - Registros transacionais devem ser cancelados com motivo, nao apagados.
 - Mudancas criticas registram auditoria.
 - Todas as consultas e gravacoes usam o `tenantId` do usuario autenticado.
+- Acesso ao modulo nao basta para executar acoes criticas; catalogo, configuracoes, aprovacao, producao, recebimento e pos-venda validam permissao operacional no backend.

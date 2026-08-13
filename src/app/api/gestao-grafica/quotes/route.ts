@@ -3,7 +3,7 @@ import crypto from "crypto";
 import { requireApiUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
-import { assertGraphicAccess, calculateGraphicPricing, cents, dateOrNull, ensureGraphicDefaults, getGraphicSettings, graphicProductionSteps } from "@/lib/graphic";
+import { assertGraphicPermission, calculateGraphicPricing, cents, dateOrNull, ensureGraphicDefaults, getGraphicSettings, graphicProductionSteps } from "@/lib/graphic";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,7 @@ async function nextNumber(db: any, tenantId: string, model: "graphicQuote" | "gr
 export async function POST(request: NextRequest) {
   try {
     const user = await requireApiUser();
-    assertGraphicAccess(user);
+    await assertGraphicPermission(user, "quote:create");
     await ensureGraphicDefaults(user.tenantId);
     const body = await request.json();
     const db = prisma as any;
@@ -116,14 +116,15 @@ export async function POST(request: NextRequest) {
     await audit({ tenantId: user.tenantId, userId: user.id, action: "graphic_create_quote", entity: "GraphicQuote", entityId: quote.id, request, metadata: { approvalRequired: quote.approvalRequired } });
     return NextResponse.json({ item: quote });
   } catch (error: any) {
-    return NextResponse.json({ error: "Nao foi possivel criar o orcamento.", detail: process.env.NODE_ENV === "production" ? undefined : String(error?.message || error) }, { status: error?.message === "UNAUTHORIZED" ? 401 : 500 });
+    const status = error?.message === "UNAUTHORIZED" ? 401 : error?.message === "FORBIDDEN_GRAPHIC_PERMISSION" || error?.message === "FORBIDDEN_MODULE" ? 403 : 500;
+    return NextResponse.json({ error: status === 403 ? "Seu perfil nao permite criar orcamentos." : "Nao foi possivel criar o orcamento.", detail: process.env.NODE_ENV === "production" ? undefined : String(error?.message || error) }, { status });
   }
 }
 
 export async function PUT(request: NextRequest) {
   try {
     const user = await requireApiUser();
-    assertGraphicAccess(user);
+    await assertGraphicPermission(user, "quote:approve");
     const body = await request.json();
     const id = String(body.id || "");
     if (!id) return NextResponse.json({ error: "Orcamento obrigatorio." }, { status: 400 });
@@ -207,6 +208,7 @@ export async function PUT(request: NextRequest) {
       QUOTE_ALREADY_APPROVED: "Orcamento ja aprovado.",
       QUOTE_EXPIRED: "Orcamento vencido. Gere uma nova versao antes de aprovar."
     };
-    return NextResponse.json({ error: messages[error?.message] || "Nao foi possivel aprovar o orcamento.", detail: process.env.NODE_ENV === "production" ? undefined : String(error?.message || error) }, { status: 400 });
+    const status = error?.message === "UNAUTHORIZED" ? 401 : error?.message === "FORBIDDEN_GRAPHIC_PERMISSION" || error?.message === "FORBIDDEN_MODULE" ? 403 : 400;
+    return NextResponse.json({ error: status === 403 ? "Seu perfil nao permite aprovar orcamentos." : messages[error?.message] || "Nao foi possivel aprovar o orcamento.", detail: process.env.NODE_ENV === "production" ? undefined : String(error?.message || error) }, { status });
   }
 }

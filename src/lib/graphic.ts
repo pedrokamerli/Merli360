@@ -6,6 +6,31 @@ export { calculateGraphicPricing };
 
 export const GRAPHIC_MODULE = "gestao-grafica";
 
+export const graphicRoles = ["OWNER_ADMIN", "SALES_MANAGER", "SALES", "PRODUCTION", "FINANCE", "ADVISOR"] as const;
+
+export type GraphicRole = typeof graphicRoles[number];
+
+export type GraphicPermission =
+  | "catalog:manage"
+  | "settings:manage"
+  | "opportunity:write"
+  | "quote:create"
+  | "quote:approve"
+  | "cost:view"
+  | "production:update"
+  | "receivable:update"
+  | "post-sale:update"
+  | "report:view";
+
+const rolePermissions: Record<GraphicRole, GraphicPermission[]> = {
+  OWNER_ADMIN: ["catalog:manage", "settings:manage", "opportunity:write", "quote:create", "quote:approve", "cost:view", "production:update", "receivable:update", "post-sale:update", "report:view"],
+  SALES_MANAGER: ["opportunity:write", "quote:create", "quote:approve", "production:update", "report:view"],
+  SALES: ["opportunity:write", "quote:create"],
+  PRODUCTION: ["production:update"],
+  FINANCE: ["receivable:update", "report:view"],
+  ADVISOR: ["report:view"]
+};
+
 export const graphicProductionSteps = [
   "Conferencia",
   "Arte",
@@ -36,6 +61,43 @@ export function assertGraphicAccess(user: GraphicUser) {
     error.name = "FORBIDDEN_MODULE";
     throw error;
   }
+}
+
+export function parseGraphicRole(value: unknown): GraphicRole | null {
+  const role = String(value || "").trim().toUpperCase();
+  return graphicRoles.includes(role as GraphicRole) ? role as GraphicRole : null;
+}
+
+export function defaultGraphicRoleForUser(user: Pick<GraphicUser, "role">): GraphicRole {
+  if (user.role === "superadmin" || user.role === "admin") return "OWNER_ADMIN";
+  return "SALES";
+}
+
+export function permissionsForGraphicRole(role: GraphicRole) {
+  return new Set(rolePermissions[role]);
+}
+
+export function hasGraphicPermission(role: GraphicRole, permission: GraphicPermission) {
+  return permissionsForGraphicRole(role).has(permission);
+}
+
+export async function getGraphicRole(user: GraphicUser): Promise<GraphicRole> {
+  const row = await prisma.graphicSetting.findFirst({
+    where: { tenantId: user.tenantId, key: `userRole:${user.id}`, status: "ACTIVE" },
+    select: { value: true }
+  });
+  return parseGraphicRole(row?.value) || defaultGraphicRoleForUser(user);
+}
+
+export async function assertGraphicPermission(user: GraphicUser, permission: GraphicPermission) {
+  assertGraphicAccess(user);
+  const role = await getGraphicRole(user);
+  if (!hasGraphicPermission(role, permission)) {
+    const error = new Error("FORBIDDEN_GRAPHIC_PERMISSION");
+    error.name = "FORBIDDEN_GRAPHIC_PERMISSION";
+    throw error;
+  }
+  return role;
 }
 
 export function cents(value: unknown) {

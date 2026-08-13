@@ -2,10 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
-import { assertGraphicAccess, cents, ensureGraphicDefaults } from "@/lib/graphic";
+import { assertGraphicAccess, assertGraphicPermission, cents, ensureGraphicDefaults } from "@/lib/graphic";
 import { catalogValidationStatus, isGraphicCatalogType, normalizeSettingValue, validatePercent } from "@/lib/graphic-catalog";
 
 export const dynamic = "force-dynamic";
+
+function catalogErrorStatus(error: any) {
+  if (error?.message === "UNAUTHORIZED") return 401;
+  if (error?.message === "FORBIDDEN_GRAPHIC_PERMISSION" || error?.message === "FORBIDDEN_MODULE") return 403;
+  return 500;
+}
 
 function modelFor(db: any, type: string) {
   if (type === "product") return db.graphicProduct;
@@ -36,11 +42,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await requireApiUser();
-    assertGraphicAccess(user);
-    await ensureGraphicDefaults(user.tenantId);
     const body = await request.json();
     const type = String(body.type || "");
     if (!isGraphicCatalogType(type)) return NextResponse.json({ error: "Tipo de cadastro invalido." }, { status: 400 });
+    await assertGraphicPermission(user, type === "setting" ? "settings:manage" : "catalog:manage");
+    await ensureGraphicDefaults(user.tenantId);
     const db = prisma as any;
     let item: any;
 
@@ -131,18 +137,19 @@ export async function POST(request: NextRequest) {
     await audit({ tenantId: user.tenantId, userId: user.id, action: "graphic_create_catalog", entity: type, entityId: item?.id, request });
     return NextResponse.json({ item });
   } catch (error: any) {
-    return NextResponse.json({ error: "Nao foi possivel salvar o cadastro grafico.", detail: process.env.NODE_ENV === "production" ? undefined : String(error?.message || error) }, { status: 500 });
+    const status = catalogErrorStatus(error);
+    return NextResponse.json({ error: status === 403 ? "Seu perfil nao permite alterar este cadastro." : "Nao foi possivel salvar o cadastro grafico.", detail: process.env.NODE_ENV === "production" ? undefined : String(error?.message || error) }, { status });
   }
 }
 
 export async function PUT(request: NextRequest) {
   try {
     const user = await requireApiUser();
-    assertGraphicAccess(user);
     const body = await request.json();
     const type = String(body.type || "");
     const id = String(body.id || "");
     if (!isGraphicCatalogType(type) || !id) return NextResponse.json({ error: "Informe o cadastro para atualizar." }, { status: 400 });
+    await assertGraphicPermission(user, type === "setting" ? "settings:manage" : "catalog:manage");
     const db = prisma as any;
     const model = modelFor(db, type);
     const existing = await model.findFirst({ where: { id, tenantId: user.tenantId } });
@@ -220,6 +227,7 @@ export async function PUT(request: NextRequest) {
     await audit({ tenantId: user.tenantId, userId: user.id, action: "graphic_update_catalog", entity: type, entityId: id, request });
     return NextResponse.json({ item });
   } catch (error: any) {
-    return NextResponse.json({ error: "Nao foi possivel atualizar o cadastro grafico.", detail: process.env.NODE_ENV === "production" ? undefined : String(error?.message || error) }, { status: 500 });
+    const status = catalogErrorStatus(error);
+    return NextResponse.json({ error: status === 403 ? "Seu perfil nao permite alterar este cadastro." : "Nao foi possivel atualizar o cadastro grafico.", detail: process.env.NODE_ENV === "production" ? undefined : String(error?.message || error) }, { status });
   }
 }

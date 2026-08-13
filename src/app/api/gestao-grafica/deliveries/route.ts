@@ -2,14 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
-import { assertGraphicAccess, dateOrNull } from "@/lib/graphic";
+import { assertGraphicPermission, dateOrNull } from "@/lib/graphic";
 
 export const dynamic = "force-dynamic";
 
 export async function PUT(request: NextRequest) {
   try {
     const user = await requireApiUser();
-    assertGraphicAccess(user);
+    await assertGraphicPermission(user, "production:update");
     const body = await request.json();
     const id = String(body.id || "");
     const status = String(body.status || "");
@@ -56,6 +56,7 @@ export async function PUT(request: NextRequest) {
     await audit({ tenantId: user.tenantId, userId: user.id, action: "graphic_update_delivery", entity: "GraphicDelivery", entityId: id, request, metadata: { status } });
     return NextResponse.json({ item });
   } catch (error: any) {
-    return NextResponse.json({ error: "Nao foi possivel atualizar a entrega.", detail: process.env.NODE_ENV === "production" ? undefined : String(error?.message || error) }, { status: error?.message === "UNAUTHORIZED" ? 401 : 500 });
+    const status = error?.message === "UNAUTHORIZED" ? 401 : error?.message === "FORBIDDEN_GRAPHIC_PERMISSION" || error?.message === "FORBIDDEN_MODULE" ? 403 : 500;
+    return NextResponse.json({ error: status === 403 ? "Seu perfil nao permite atualizar entregas." : "Nao foi possivel atualizar a entrega.", detail: process.env.NODE_ENV === "production" ? undefined : String(error?.message || error) }, { status });
   }
 }

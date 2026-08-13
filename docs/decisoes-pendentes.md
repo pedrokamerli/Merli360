@@ -9,5 +9,6 @@ Atualizado em: 13/08/2026
 - Evoluir o modelo visual do PDF de orcamento; neste ciclo existe PDF comercial simples por token.
 - Definir se pedidos aprovados devem gerar automaticamente `FinancialTitle` sempre ou apenas quando houver condicao de pagamento confirmada.
 - Definir quais usuarios `studium`, `ana` e `marina` terao `gestao-grafica` em producao.
+- Configurar papeis operacionais reais por usuario em `GraphicSetting` depois da definicao do dono da operacao.
 - Adotar ESLint real em ciclo futuro. Neste momento `npm run lint` e nao interativo e executa `tsc --noEmit`.
 - Ampliar a suite `npm run test` para cobrir mais fluxos integrados do modulo grafica, alem das regras puras ja cobertas.
