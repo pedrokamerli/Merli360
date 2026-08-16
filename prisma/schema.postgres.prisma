@@ -907,7 +907,6 @@ model GraphicOrder {
   postSales   GraphicPostSale[]
 
   @@unique([tenantId, number])
-  @@unique([tenantId, quoteId])
   @@index([tenantId, status])
   @@index([tenantId, clientId])
 }
