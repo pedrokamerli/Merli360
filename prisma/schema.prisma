@@ -473,7 +473,7 @@ model GraphicMaterial {
   materialNeeds GraphicMaterialNeed[]
 
   @@unique([tenantId, name])
-  @@unique([tenantId, code])
+  @@index([tenantId, code])
   @@index([tenantId, status])
 }
 
