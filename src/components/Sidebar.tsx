@@ -70,16 +70,22 @@ const crmItems = [
 
 function graphicItemsFor(role?: SidebarUser["graphicRole"]) {
   if (!role) return [{ href: "/gestao-grafica", label: "Gestao da Grafica", icon: Printer }];
-  if (role === "GRAPHIC_SALES") return [{ href: "/gestao-grafica/commercial", label: "Grafica Comercial", icon: Printer }];
-  if (role === "GRAPHIC_ADMIN") return [{ href: "/gestao-grafica/administrative", label: "Grafica Administrativo", icon: Banknote }];
-  if (role === "GRAPHIC_OPERATIONS") return [{ href: "/gestao-grafica/operations", label: "Grafica Operacao", icon: Package }];
-  if (role === "GRAPHIC_ADVISOR") return [{ href: "/gestao-grafica/management", label: "Grafica Gestao", icon: BarChart3 }];
+  if (role === "GRAPHIC_SALES") return [{ href: "/gestao-grafica/comercial", label: "Grafica Comercial", icon: Printer }];
+  if (role === "GRAPHIC_ADMIN") return [
+    { href: "/gestao-grafica/administrativo", label: "Grafica Administrativo", icon: Banknote },
+    { href: "/gestao-grafica/gestao", label: "Grafica Gestao", icon: BarChart3 }
+  ];
+  if (role === "GRAPHIC_OPERATIONS") return [
+    { href: "/gestao-grafica/operacao", label: "Grafica Operacao", icon: Package },
+    { href: "/gestao-grafica/minhas-vendas", label: "Minhas Vendas", icon: Printer }
+  ];
+  if (role === "GRAPHIC_ADVISOR") return [{ href: "/gestao-grafica/gestao", label: "Grafica Gestao", icon: BarChart3 }];
   return [
-    { href: "/gestao-grafica/commercial", label: "Grafica Comercial", icon: Printer },
-    { href: "/gestao-grafica/administrative", label: "Grafica Administrativo", icon: Banknote },
-    { href: "/gestao-grafica/operations", label: "Grafica Operacao", icon: Package },
-    { href: "/gestao-grafica/management", label: "Grafica Gestao", icon: BarChart3 },
-    { href: "/gestao-grafica/settings", label: "Config. Grafica", icon: Settings }
+    { href: "/gestao-grafica/comercial", label: "Grafica Comercial", icon: Printer },
+    { href: "/gestao-grafica/administrativo", label: "Grafica Administrativo", icon: Banknote },
+    { href: "/gestao-grafica/operacao", label: "Grafica Operacao", icon: Package },
+    { href: "/gestao-grafica/gestao", label: "Grafica Gestao", icon: BarChart3 },
+    { href: "/gestao-grafica/configuracoes", label: "Config. Grafica", icon: Settings }
   ];
 }
 

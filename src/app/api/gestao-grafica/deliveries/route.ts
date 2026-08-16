@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
-import { assertGraphicPermission, dateOrNull } from "@/lib/graphic";
+import { assertGraphicPermission, dateOrNull, getGraphicSettings } from "@/lib/graphic";
 import { validateDeliveryStatusChange } from "@/lib/graphic-deliveries";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +21,7 @@ export async function PUT(request: NextRequest) {
     const validation = validateDeliveryStatusChange({ status, note: body.note, proofAttachmentId: body.proofAttachmentId || existing.proofAttachmentId });
     if (validation) return NextResponse.json({ error: validation }, { status: 400 });
 
+    const settings = await getGraphicSettings(user.tenantId);
     const item = await db.$transaction(async (tx: any) => {
       const deliveredAt = status === "DELIVERED" || status === "ACCEPTED" ? dateOrNull(body.deliveredAt) || new Date() : existing.deliveredAt;
       const updated = await tx.graphicDelivery.update({
@@ -40,11 +41,23 @@ export async function PUT(request: NextRequest) {
       if (["DELIVERED", "ACCEPTED"].includes(status)) {
         const already = await tx.graphicPostSale.findFirst({ where: { tenantId: user.tenantId, orderId: existing.orderId, status: "OPEN" } });
         if (!already) {
+          const dueDate = new Date();
+          dueDate.setDate(dueDate.getDate() + settings.postSaleDays);
           await tx.graphicPostSale.create({
             data: {
               tenantId: user.tenantId,
               orderId: existing.orderId,
               note: "Contato de pos-venda gerado automaticamente apos entrega.",
+              status: "OPEN",
+              createdById: user.id,
+              updatedById: user.id
+            }
+          });
+          await tx.graphicTask.create({
+            data: {
+              tenantId: user.tenantId,
+              title: `Realizar pos-venda do pedido #${existing.order.number}`,
+              dueDate,
               status: "OPEN",
               createdById: user.id,
               updatedById: user.id

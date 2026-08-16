@@ -4,6 +4,7 @@ import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { assertGraphicPermission, cents, dateOrNull } from "@/lib/graphic";
 import { createGraphicPurchase, parseInventoryMovementType, receiveGraphicPurchase, registerGraphicInventoryMovement } from "@/lib/graphic-inventory";
+import { financialTitleOpenCents, settleFinancialTitle } from "@/lib/financial-ledger";
 
 export const dynamic = "force-dynamic";
 
@@ -12,14 +13,16 @@ export async function GET() {
     const user = await requireApiUser();
     await assertGraphicPermission(user, "inventory:view");
     const db = prisma as any;
-    const [materials, suppliers, purchases, movements, needs] = await Promise.all([
+    const [materials, suppliers, purchases, movements, needs, payables, receivables] = await Promise.all([
       db.graphicMaterial.findMany({ where: { tenantId: user.tenantId }, orderBy: { name: "asc" }, include: { supplierRef: true } }),
       db.graphicSupplier.findMany({ where: { tenantId: user.tenantId, status: "ACTIVE" }, orderBy: { name: "asc" } }),
       db.graphicPurchase.findMany({ where: { tenantId: user.tenantId }, orderBy: { updatedAt: "desc" }, take: 100, include: { supplier: true, items: { include: { material: true } } } }),
       db.graphicInventoryMovement.findMany({ where: { tenantId: user.tenantId }, orderBy: { occurredAt: "desc" }, take: 100, include: { material: true } }),
-      db.graphicMaterialNeed.findMany({ where: { tenantId: user.tenantId, status: "OPEN" }, orderBy: { createdAt: "desc" }, include: { material: true } })
+      db.graphicMaterialNeed.findMany({ where: { tenantId: user.tenantId, status: "OPEN" }, orderBy: { createdAt: "desc" }, include: { material: true } }),
+      db.financialTitle.findMany({ where: { tenantId: user.tenantId, type: "PAYABLE", origin: "GESTAO_GRAFICA", status: { in: ["OPEN", "PARTIAL"] } }, orderBy: { dueDate: "asc" }, take: 100, include: { settlements: true } }),
+      db.graphicReceivable.findMany({ where: { tenantId: user.tenantId, status: { not: "PAID" } }, orderBy: { dueDate: "asc" }, take: 100, include: { order: true } })
     ]);
-    return NextResponse.json({ materials, suppliers, purchases, movements, needs });
+    return NextResponse.json({ materials, suppliers, purchases, movements, needs, payables: payables.map((item: any) => ({ ...item, openCents: financialTitleOpenCents(item) })), receivables });
   } catch (error: any) {
     const status = error?.message === "UNAUTHORIZED" ? 401 : error?.message?.startsWith("FORBIDDEN") ? 403 : 500;
     return NextResponse.json({ error: status === 403 ? "Seu perfil nao permite acessar o estoque." : "Nao foi possivel carregar estoque e compras." }, { status });
@@ -75,6 +78,16 @@ export async function POST(request: NextRequest) {
         return tx.graphicPurchase.update({ where: { id: purchase.id }, data: { status: "ORDERED", orderedAt: purchase.orderedAt || new Date(), financialTitleId: title.id, updatedById: user.id }, include: { supplier: true, items: { include: { material: true } } } });
       });
       await audit({ tenantId: user.tenantId, userId: user.id, action: "graphic_order_purchase", entity: "GraphicPurchase", entityId: item.id, request });
+      return NextResponse.json({ item });
+    }
+
+    if (action === "settle-payable") {
+      await assertGraphicPermission(user, "purchase:manage");
+      const titleId = String(body.titleId || "");
+      const amount = Number(String(body.amount || "0").replace(",", "."));
+      if (!titleId || !Number.isFinite(amount) || amount <= 0) return NextResponse.json({ error: "Informe titulo e valor pago." }, { status: 400 });
+      const item = await settleFinancialTitle({ tenantId: user.tenantId, titleId, principalAmount: amount, effectiveDate: body.paidAt || new Date(), accountName: String(body.accountName || "Conta principal"), paymentMethod: String(body.method || "Manual"), notes: String(body.notes || "") || null, idempotencyKey: `graphic-payable-${titleId}-${String(body.paidAt || new Date().toISOString()).slice(0, 10)}-${amount}` });
+      await audit({ tenantId: user.tenantId, userId: user.id, action: "graphic_settle_payable", entity: "FinancialTitle", entityId: titleId, request, metadata: { amount } });
       return NextResponse.json({ item });
     }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ClipboardPlus, Loader2, Package, Plus, RefreshCw, ShoppingCart, Truck } from "lucide-react";
+import { AlertTriangle, Banknote, ClipboardPlus, Loader2, Package, Plus, RefreshCw, ShoppingCart, Truck } from "lucide-react";
 import { MetricCard } from "@/components/MetricCard";
 
 type Row = Record<string, any>;
@@ -44,6 +44,8 @@ export function GraphicAdministrativeWorkspace() {
   const suppliers = data?.suppliers || [];
   const purchases = data?.purchases || [];
   const needs = data?.needs || [];
+  const payables = data?.payables || [];
+  const receivables = data?.receivables || [];
   const criticalMaterials = useMemo(() => materials.filter((item: Row) => Number(item.currentStock || 0) <= Number(item.minStock || 0)), [materials]);
 
   async function submitMovement(event: FormEvent<HTMLFormElement>) {
@@ -58,13 +60,35 @@ export function GraphicAdministrativeWorkspace() {
     event.preventDefault();
     if (await request({ action: "purchase", ...purchase })) { setPurchase({ supplierId: "", expectedAt: "", notes: "", items: [{ materialId: "", quantity: "", unitCost: "" }] }); setMessage("Compra criada como rascunho."); }
   }
-  async function receiveAll(item: Row) {
+  async function receivePurchase(item: Row) {
     const openItems = item.items.filter((line: Row) => Number(line.receivedQuantity || 0) < Number(line.quantity || 0));
     if (!openItems.length) return;
-    if (await request({ action: "receive-purchase", purchaseId: item.id, items: openItems.map((line: Row) => ({ itemId: line.id, quantity: Number(line.quantity) - Number(line.receivedQuantity || 0) })) })) setMessage("Recebimento registrado e estoque atualizado.");
+    const received = openItems.map((line: Row) => {
+      const pending = Number(line.quantity) - Number(line.receivedQuantity || 0);
+      const value = prompt(`Quantidade recebida de ${line.material?.name || "material"} (pendente: ${pending})`, String(pending));
+      return { itemId: line.id, quantity: value === null ? 0 : Number(String(value).replace(",", ".")) };
+    }).filter((line: { itemId: string; quantity: number }) => Number.isFinite(line.quantity) && line.quantity > 0);
+    if (!received.length) return;
+    if (await request({ action: "receive-purchase", purchaseId: item.id, items: received })) setMessage("Recebimento registrado e estoque atualizado.");
   }
   async function orderPurchase(item: Row) {
     if (await request({ action: "order-purchase", purchaseId: item.id })) setMessage("Compra marcada como pedida e conta a pagar criada.");
+  }
+  async function settlePayable(item: Row) {
+    const amount = prompt("Valor pago", String(Number(item.openCents || 0) / 100));
+    if (!amount) return;
+    if (await request({ action: "settle-payable", titleId: item.id, amount, accountName: "Conta principal", method: "Manual" })) setMessage("Pagamento registrado.");
+  }
+  async function settleReceivable(item: Row) {
+    const amount = prompt("Valor recebido", String((Number(item.amountCents || 0) - Number(item.receivedCents || 0)) / 100));
+    if (!amount) return;
+    setSaving(true);
+    const response = await fetch("/api/gestao-grafica/receivables", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: item.id, amount, accountName: "Conta principal", method: "Manual" }) });
+    const body = await response.json();
+    setSaving(false);
+    if (!response.ok) { setMessage(body.error || "Nao foi possivel registrar o recebimento."); return; }
+    setMessage("Recebimento registrado.");
+    await load();
   }
 
   return <div className="mx-auto max-w-screen-2xl space-y-5">
@@ -78,7 +102,7 @@ export function GraphicAdministrativeWorkspace() {
       <MetricCard label="Abaixo do minimo" value={String(criticalMaterials.length)} hint="materiais para revisar" tone={criticalMaterials.length ? "danger" : "good"} />
       <MetricCard label="Faltas para pedidos" value={String(needs.length)} hint="necessidades abertas" tone={needs.length ? "warn" : "good"} />
       <MetricCard label="Compras em aberto" value={String(purchases.filter((item: Row) => !["RECEIVED", "CANCELLED"].includes(item.status)).length)} hint="rascunhos e pedidos" />
-      <MetricCard label="Fornecedores" value={String(suppliers.length)} hint="cadastros ativos" />
+      <MetricCard label="A receber" value={String(receivables.length)} hint="parcelas pendentes" tone={receivables.some((item: Row) => new Date(item.dueDate) < new Date()) ? "warn" : undefined} />
     </section>
     <section className="surface-panel p-4"><div className="mb-3 flex items-center gap-2"><Package className="text-emerald-600" size={18} /><h2 className="font-black text-slate-950">Estoque de materiais</h2></div><div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{materials.length ? materials.map((item: Row) => <article key={item.id} className={`rounded-lg border p-3 ${Number(item.currentStock || 0) <= Number(item.minStock || 0) ? "border-amber-200 bg-amber-50" : "border-slate-200 bg-white"}`}><p className="font-black text-slate-950">{item.name}</p><p className="mt-1 text-sm font-bold text-slate-700">{item.currentStock} {item.unit}</p><p className="text-xs font-semibold text-slate-500">Minimo: {item.minStock} | {item.location || "Local nao informado"}</p></article>) : <p className="rounded-lg bg-slate-50 p-3 text-sm font-bold text-slate-500">Nenhum material cadastrado.</p>}</div></section>
     <section className="grid gap-4 xl:grid-cols-3">
@@ -99,7 +123,11 @@ export function GraphicAdministrativeWorkspace() {
         {purchase.items.map((line, index) => <div key={index} className="grid gap-2 sm:grid-cols-[1fr_110px_130px_34px]"><select className={inputClass} required value={line.materialId} onChange={(event) => { const items = [...purchase.items]; items[index] = { ...line, materialId: event.target.value }; setPurchase({ ...purchase, items }); }}><option value="">Material</option>{materials.map((item: Row) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><input className={inputClass} required inputMode="decimal" placeholder="Qtd." value={line.quantity} onChange={(event) => { const items = [...purchase.items]; items[index] = { ...line, quantity: event.target.value }; setPurchase({ ...purchase, items }); }} /><input className={inputClass} required inputMode="decimal" placeholder="Custo R$" value={line.unitCost} onChange={(event) => { const items = [...purchase.items]; items[index] = { ...line, unitCost: event.target.value }; setPurchase({ ...purchase, items }); }} /><button className="icon-action" type="button" title="Remover material" disabled={purchase.items.length === 1} onClick={() => setPurchase({ ...purchase, items: purchase.items.filter((_, current) => current !== index) })}>-</button></div>)}
         <button className="secondary-action inline-flex items-center justify-center gap-2 py-2" type="button" onClick={() => setPurchase({ ...purchase, items: [...purchase.items, { materialId: "", quantity: "", unitCost: "" }] })}><Plus size={15} />Adicionar material</button><input className={inputClass} placeholder="Observacao" value={purchase.notes} onChange={(event) => setPurchase({ ...purchase, notes: event.target.value })} /><button className="primary-action py-2" disabled={saving}>Criar compra</button></div>
       </form>
-      <section className="surface-panel p-4"><div className="mb-3 flex items-center gap-2"><Package className="text-violet-600" size={18} /><h2 className="font-black text-slate-950">Compras recentes</h2></div><div className="space-y-2">{purchases.length ? purchases.map((item: Row) => <article key={item.id} className="rounded-lg border border-slate-200 bg-white p-3"><div className="flex items-start justify-between gap-3"><div><p className="font-black text-slate-950">Compra #{item.number}</p><p className="text-xs font-semibold text-slate-500">{item.supplier?.name || "Fornecedor a definir"} | {brl(item.totalCents)}</p></div><span className="text-xs font-black text-slate-600">{item.status}</span></div><p className="mt-2 text-xs font-semibold text-slate-500">{item.items.map((line: Row) => `${line.material?.name}: ${line.receivedQuantity}/${line.quantity}`).join(" | ")}</p>{item.status === "DRAFT" || item.status === "REQUESTED" ? <button className="secondary-action mt-3 w-full py-2 text-xs" type="button" disabled={saving} onClick={() => orderPurchase(item)}>Marcar como pedida</button> : null}{!["RECEIVED", "CANCELLED", "DRAFT", "REQUESTED"].includes(item.status) ? <button className="primary-action mt-3 w-full py-2 text-xs" type="button" disabled={saving} onClick={() => receiveAll(item)}>Marcar itens pendentes como recebidos</button> : null}</article>) : <p className="rounded-lg bg-slate-50 p-3 text-sm font-bold text-slate-500">Nenhuma compra cadastrada.</p>}</div></section>
+      <section className="surface-panel p-4"><div className="mb-3 flex items-center gap-2"><Package className="text-violet-600" size={18} /><h2 className="font-black text-slate-950">Compras recentes</h2></div><div className="space-y-2">{purchases.length ? purchases.map((item: Row) => <article key={item.id} className="rounded-lg border border-slate-200 bg-white p-3"><div className="flex items-start justify-between gap-3"><div><p className="font-black text-slate-950">Compra #{item.number}</p><p className="text-xs font-semibold text-slate-500">{item.supplier?.name || "Fornecedor a definir"} | {brl(item.totalCents)}</p></div><span className="text-xs font-black text-slate-600">{item.status === "DRAFT" ? "Rascunho" : item.status === "ORDERED" ? "Pedido ao fornecedor" : item.status === "PARTIALLY_RECEIVED" ? "Recebimento parcial" : item.status === "RECEIVED" ? "Recebida" : item.status}</span></div><p className="mt-2 text-xs font-semibold text-slate-500">{item.items.map((line: Row) => `${line.material?.name}: ${line.receivedQuantity}/${line.quantity}`).join(" | ")}</p>{item.status === "DRAFT" || item.status === "REQUESTED" ? <button className="secondary-action mt-3 w-full py-2 text-xs" type="button" disabled={saving} onClick={() => orderPurchase(item)}>Marcar como pedida</button> : null}{!["RECEIVED", "CANCELLED", "DRAFT", "REQUESTED"].includes(item.status) ? <button className="primary-action mt-3 w-full py-2 text-xs" type="button" disabled={saving} onClick={() => receivePurchase(item)}>Registrar recebimento</button> : null}</article>) : <p className="rounded-lg bg-slate-50 p-3 text-sm font-bold text-slate-500">Nenhuma compra cadastrada.</p>}</div></section>
+    </section>
+    <section className="grid gap-4 xl:grid-cols-2">
+      <section className="surface-panel p-4"><div className="mb-3 flex items-center gap-2"><Banknote className="text-emerald-600" size={18} /><h2 className="font-black text-slate-950">Contas a receber</h2></div><div className="space-y-2">{receivables.length ? receivables.map((item: Row) => <article key={item.id} className="rounded-lg border border-slate-200 bg-white p-3"><div className="flex items-start justify-between gap-3"><div><p className="font-black text-slate-950">Pedido #{item.order?.number || "-"}</p><p className="text-xs font-semibold text-slate-500">Vencimento {new Intl.DateTimeFormat("pt-BR").format(new Date(item.dueDate))}</p></div><p className="font-black text-slate-800">{brl(Number(item.amountCents || 0) - Number(item.receivedCents || 0))}</p></div><button className="primary-action mt-3 w-full py-2 text-xs" type="button" disabled={saving} onClick={() => settleReceivable(item)}>Registrar recebimento</button></article>) : <p className="rounded-lg bg-emerald-50 p-3 text-sm font-bold text-emerald-700">Nenhuma parcela pendente.</p>}</div></section>
+      <section className="surface-panel p-4"><div className="mb-3 flex items-center gap-2"><Banknote className="text-violet-600" size={18} /><h2 className="font-black text-slate-950">Contas a pagar</h2></div><div className="space-y-2">{payables.length ? payables.map((item: Row) => <article key={item.id} className="rounded-lg border border-slate-200 bg-white p-3"><div className="flex items-start justify-between gap-3"><div><p className="font-black text-slate-950">{item.description}</p><p className="text-xs font-semibold text-slate-500">Vencimento {new Intl.DateTimeFormat("pt-BR").format(new Date(item.dueDate))}</p></div><p className="font-black text-slate-800">{brl(item.openCents)}</p></div><button className="secondary-action mt-3 w-full py-2 text-xs" type="button" disabled={saving} onClick={() => settlePayable(item)}>Registrar pagamento</button></article>) : <p className="rounded-lg bg-emerald-50 p-3 text-sm font-bold text-emerald-700">Nenhuma conta a pagar em aberto.</p>}</div></section>
     </section>
   </div>;
 }

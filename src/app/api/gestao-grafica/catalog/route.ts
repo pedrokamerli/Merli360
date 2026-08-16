@@ -76,15 +76,22 @@ export async function POST(request: NextRequest) {
       validatePercent(wastePercent, "Perda prevista");
       if (!name) return NextResponse.json({ error: "Informe o material." }, { status: 400 });
       const costCents = cents(body.currentCost);
+      const initialStock = Number(body.initialStock || 0);
+      if (!Number.isFinite(initialStock) || initialStock < 0) return NextResponse.json({ error: "Saldo inicial do material deve ser valido." }, { status: 400 });
       item = await db.$transaction(async (tx: any) => {
         const material = await tx.graphicMaterial.create({
           data: {
             tenantId: user.tenantId,
             name,
+            code: String(body.code || "").trim() || null,
             unit: String(body.unit || "m2"),
+            currentStock: initialStock,
+            minStock: Number(body.minStock || 0),
             currentCostCents: costCents,
             wastePercent,
             supplier: String(body.supplier || "") || null,
+            supplierId: String(body.supplierId || "") || null,
+            location: String(body.location || "") || null,
             status: "ACTIVE",
             validationStatus: catalogValidationStatus(costCents > 0),
             createdById: user.id,
@@ -102,6 +109,22 @@ export async function POST(request: NextRequest) {
             updatedById: user.id
           }
         });
+        if (initialStock !== 0) {
+          await tx.graphicInventoryMovement.create({
+            data: {
+              tenantId: user.tenantId,
+              materialId: material.id,
+              type: "ENTRY",
+              quantity: initialStock,
+              unitCostCents: costCents || null,
+              referenceType: "INITIAL_STOCK",
+              referenceId: material.id,
+              note: "Saldo inicial informado no cadastro do material.",
+              createdById: user.id,
+              updatedById: user.id
+            }
+          });
+        }
         return material;
       });
     }
@@ -185,10 +208,14 @@ export async function PUT(request: NextRequest) {
           where: { id },
           data: {
             name: body.name === undefined ? existing.name : String(body.name || existing.name),
+            code: body.code === undefined ? existing.code : String(body.code || "").trim() || null,
             unit: body.unit === undefined ? existing.unit : String(body.unit || existing.unit),
+            minStock: body.minStock === undefined ? existing.minStock : Number(body.minStock || 0),
             currentCostCents: costCents,
             wastePercent,
             supplier: body.supplier === undefined ? existing.supplier : String(body.supplier || "") || null,
+            supplierId: body.supplierId === undefined ? existing.supplierId : String(body.supplierId || "") || null,
+            location: body.location === undefined ? existing.location : String(body.location || "") || null,
             validationStatus: catalogValidationStatus(costCents > 0),
             status: String(body.status || existing.status),
             updatedById: user.id

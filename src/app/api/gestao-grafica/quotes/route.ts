@@ -23,43 +23,22 @@ export async function POST(request: NextRequest) {
     const db = prisma as any;
     const opportunity = body.opportunityId ? await db.graphicOpportunity.findFirst({ where: { id: String(body.opportunityId), tenantId: user.tenantId } }) : null;
     const clientId = String(body.clientId || opportunity?.clientId || "");
-    const description = String(body.description || "").trim();
+    const requestedItems = Array.isArray(body.items) && body.items.length ? body.items : [body];
     const validUntil = dateOrNull(body.validUntil);
     if (!clientId) return NextResponse.json({ error: "Orcamento precisa de cliente." }, { status: 400 });
     if (!validUntil) return NextResponse.json({ error: "Informe a validade do orcamento." }, { status: 400 });
-    if (!description) return NextResponse.json({ error: "Inclua pelo menos um item no orcamento." }, { status: 400 });
-
-    const product = body.productId ? await db.graphicProduct.findFirst({
-      where: { id: String(body.productId), tenantId: user.tenantId },
-      include: {
-        components: { include: { material: true } },
-        processes: { include: { process: true } },
-        versions: { orderBy: { createdAt: "desc" }, take: 1 }
-      }
-    }) : null;
-    const productSnapshot = product?.versions?.[0]?.snapshot ? JSON.parse(product.versions[0].snapshot) : null;
-    const productMaterialCostCents = product?.components?.reduce((sum: number, item: any) => sum + Math.round((item.material?.currentCostCents || 0) * Number(item.quantity || 1)), 0) || 0;
-    const productProcessCostCents = product?.processes?.reduce((sum: number, item: any) => sum + Math.round((item.process?.costCents || 0) * Number(item.quantity || 1)), 0) || 0;
-    const productWastePercent = product?.components?.[0]?.wastePercent ?? productSnapshot?.wastePercent ?? 0;
-
+    if (!requestedItems.length || requestedItems.some((item: any) => !String(item.description || "").trim())) return NextResponse.json({ error: "Inclua pelo menos um item no orcamento." }, { status: 400 });
     const settings = await getGraphicSettings(user.tenantId);
-    const pricing = calculateGraphicPricing({
-      quantity: Number(body.quantity || 1),
-      width: body.width ? Number(body.width) : null,
-      height: body.height ? Number(body.height) : null,
-      materialCostCents: body.materialCost ? cents(body.materialCost) : productMaterialCostCents,
-      processCostCents: body.processCost ? cents(body.processCost) : productProcessCostCents,
-      outsourcedCostCents: cents(body.outsourcedCost),
-      laborCostCents: cents(body.laborCost),
-      freightCents: cents(body.freight),
-      installationCents: cents(body.installation),
-      extraCostCents: body.extraCost ? cents(body.extraCost) : Number(productSnapshot?.extraCostCents || 0),
-      discountCents: cents(body.discount),
-      urgencyCents: cents(body.urgency),
-      negotiatedPriceCents: body.negotiatedPrice ? cents(body.negotiatedPrice) : undefined,
-      wastePercent: body.wastePercent ? Number(body.wastePercent || 0) : Number(productWastePercent || 0),
-      ...settings
-    });
+    const preparedItems = await Promise.all(requestedItems.map(async (input: any) => {
+      const product = input.productId ? await db.graphicProduct.findFirst({ where: { id: String(input.productId), tenantId: user.tenantId }, include: { components: { include: { material: true } }, processes: { include: { process: true } }, versions: { orderBy: { createdAt: "desc" }, take: 1 } } }) : null;
+      const snapshot = product?.versions?.[0]?.snapshot ? JSON.parse(product.versions[0].snapshot) : null;
+      const materialCostCents = product?.components?.reduce((sum: number, component: any) => sum + Math.round((component.material?.currentCostCents || 0) * Number(component.quantity || 1)), 0) || 0;
+      const processCostCents = product?.processes?.reduce((sum: number, process: any) => sum + Math.round((process.process?.costCents || 0) * Number(process.quantity || 1)), 0) || 0;
+      const pricing = calculateGraphicPricing({ quantity: Number(input.quantity || 1), width: input.width ? Number(input.width) : null, height: input.height ? Number(input.height) : null, materialCostCents: input.materialCost ? cents(input.materialCost) : materialCostCents, processCostCents: input.processCost ? cents(input.processCost) : processCostCents, outsourcedCostCents: cents(input.outsourcedCost), laborCostCents: cents(input.laborCost), freightCents: cents(input.freight), installationCents: cents(input.installation), extraCostCents: input.extraCost ? cents(input.extraCost) : Number(snapshot?.extraCostCents || 0), discountCents: cents(input.discount), urgencyCents: cents(input.urgency), negotiatedPriceCents: input.negotiatedPrice ? cents(input.negotiatedPrice) : undefined, wastePercent: input.wastePercent ? Number(input.wastePercent || 0) : Number(product?.components?.[0]?.wastePercent ?? snapshot?.wastePercent ?? 0), ...settings });
+      return { input, product, materialCostCents, processCostCents, pricing };
+    }));
+    const totals = preparedItems.reduce((sum: any, item: any) => ({ subtotalCents: sum.subtotalCents + item.pricing.suggestedPriceCents, discountCents: sum.discountCents + cents(item.input.discount), urgencyCents: sum.urgencyCents + cents(item.input.urgency), freightCents: sum.freightCents + cents(item.input.freight), installationCents: sum.installationCents + cents(item.input.installation), totalCostCents: sum.totalCostCents + item.pricing.totalCostCents, totalPriceCents: sum.totalPriceCents + item.pricing.negotiatedPriceCents, minimumPriceCents: sum.minimumPriceCents + item.pricing.minimumPriceCents }), { subtotalCents: 0, discountCents: 0, urgencyCents: 0, freightCents: 0, installationCents: 0, totalCostCents: 0, totalPriceCents: 0, minimumPriceCents: 0 });
+    const approvalReasons = preparedItems.filter((item: any) => item.pricing.approvalRequired).map((item: any) => item.pricing.approvalReason).filter(Boolean);
 
     const quote = await db.$transaction(async (tx: any) => {
       const number = await nextNumber(tx, user.tenantId, "graphicQuote");
@@ -74,53 +53,25 @@ export async function POST(request: NextRequest) {
           validUntil,
           paymentTerms: String(body.paymentTerms || "") || null,
           notes: String(body.notes || "") || null,
-          subtotalCents: pricing.suggestedPriceCents,
-          discountCents: cents(body.discount),
-          urgencyCents: cents(body.urgency),
-          freightCents: cents(body.freight),
-          installationCents: cents(body.installation),
-          totalCostCents: pricing.totalCostCents,
-          totalPriceCents: pricing.negotiatedPriceCents,
-          minimumPriceCents: pricing.minimumPriceCents,
-          marginPercent: pricing.marginPercent,
-          markupPercent: pricing.markupPercent,
-          approvalRequired: pricing.approvalRequired,
-          approvalReason: pricing.approvalReason || null,
+          ...totals,
+          marginPercent: totals.totalPriceCents ? Math.round(((totals.totalPriceCents - totals.totalCostCents) / totals.totalPriceCents) * 10000) / 100 : 0,
+          markupPercent: totals.totalCostCents ? Math.round(((totals.totalPriceCents - totals.totalCostCents) / totals.totalCostCents) * 10000) / 100 : 0,
+          approvalRequired: approvalReasons.length > 0,
+          approvalReason: approvalReasons.join(" ") || null,
           createdById: user.id,
           updatedById: user.id
         }
       });
-      const area = body.width && body.height ? Number(body.width) * Number(body.height) : null;
-      const item = await tx.graphicQuoteItem.create({
-        data: {
-          tenantId: user.tenantId,
-          quoteId: created.id,
-          productId: body.productId || null,
-          description,
-          quantity: Number(body.quantity || 1),
-          width: body.width ? Number(body.width) : null,
-          height: body.height ? Number(body.height) : null,
-          area,
-          unit: String(body.unit || "unidade"),
-          deadlineDays: body.deadlineDays ? Number(body.deadlineDays) : null,
-          costCents: pricing.totalCostCents,
-          priceCents: pricing.negotiatedPriceCents,
-          marginPercent: pricing.marginPercent,
-          costSnapshot: JSON.stringify({ input: body, pricing, settings }),
-          createdById: user.id,
-          updatedById: user.id
-        }
-      });
-      await tx.graphicQuoteItemCost.createMany({
-        data: [
-          { tenantId: user.tenantId, quoteItemId: item.id, type: "MATERIAL", description: product?.components?.[0]?.material?.name || "Materiais e perdas previstas", materialId: product?.components?.[0]?.materialId || null, unitCostCents: body.materialCost ? cents(body.materialCost) : productMaterialCostCents, totalCostCents: pricing.materialBase + pricing.wasteCents, status: "PENDING_VALIDATION", createdById: user.id, updatedById: user.id },
-          { tenantId: user.tenantId, quoteItemId: item.id, type: "PROCESS", description: product?.processes?.[0]?.process?.name || "Processos internos e terceirizados", processId: product?.processes?.[0]?.processId || null, unitCostCents: body.processCost ? cents(body.processCost) : productProcessCostCents, totalCostCents: (body.processCost ? cents(body.processCost) : productProcessCostCents) + cents(body.outsourcedCost), status: "PENDING_VALIDATION", createdById: user.id, updatedById: user.id },
-          { tenantId: user.tenantId, quoteItemId: item.id, type: "OVERHEAD", description: "Mao de obra, fixos, impostos, taxas e comissao", totalCostCents: pricing.totalCostCents - pricing.materialBase - pricing.wasteCents - (body.processCost ? cents(body.processCost) : productProcessCostCents) - cents(body.outsourcedCost), status: "PENDING_VALIDATION", createdById: user.id, updatedById: user.id }
-        ]
-      });
-      await tx.graphicQuoteVersion.create({ data: { tenantId: user.tenantId, quoteId: created.id, version: 1, snapshot: JSON.stringify({ quote: created, item, pricing }), createdById: user.id, updatedById: user.id } });
-      if (pricing.approvalRequired) {
-        await tx.graphicApprovalRequest.create({ data: { tenantId: user.tenantId, quoteId: created.id, reason: pricing.approvalReason || "Revisao comercial necessaria.", requestedById: user.id, createdById: user.id, updatedById: user.id } });
+      const items = [];
+      for (const prepared of preparedItems) {
+        const { input, product, materialCostCents, processCostCents, pricing } = prepared;
+        const item = await tx.graphicQuoteItem.create({ data: { tenantId: user.tenantId, quoteId: created.id, productId: input.productId || null, description: String(input.description).trim(), quantity: Number(input.quantity || 1), width: input.width ? Number(input.width) : null, height: input.height ? Number(input.height) : null, area: input.width && input.height ? Number(input.width) * Number(input.height) : null, unit: String(input.unit || "unidade"), deadlineDays: input.deadlineDays ? Number(input.deadlineDays) : null, costCents: pricing.totalCostCents, priceCents: pricing.negotiatedPriceCents, marginPercent: pricing.marginPercent, costSnapshot: JSON.stringify({ input, pricing, settings }), createdById: user.id, updatedById: user.id } });
+        items.push(item);
+        await tx.graphicQuoteItemCost.createMany({ data: [{ tenantId: user.tenantId, quoteItemId: item.id, type: "MATERIAL", description: product?.components?.[0]?.material?.name || "Materiais e perdas previstas", materialId: product?.components?.[0]?.materialId || null, unitCostCents: input.materialCost ? cents(input.materialCost) : materialCostCents, totalCostCents: pricing.materialBase + pricing.wasteCents, status: "PENDING_VALIDATION", createdById: user.id, updatedById: user.id }, { tenantId: user.tenantId, quoteItemId: item.id, type: "PROCESS", description: product?.processes?.[0]?.process?.name || "Processos internos e terceirizados", processId: product?.processes?.[0]?.processId || null, unitCostCents: input.processCost ? cents(input.processCost) : processCostCents, totalCostCents: (input.processCost ? cents(input.processCost) : processCostCents) + cents(input.outsourcedCost), status: "PENDING_VALIDATION", createdById: user.id, updatedById: user.id }, { tenantId: user.tenantId, quoteItemId: item.id, type: "OVERHEAD", description: "Mao de obra, fixos, impostos, taxas e comissao", totalCostCents: pricing.totalCostCents - pricing.materialBase - pricing.wasteCents - (input.processCost ? cents(input.processCost) : processCostCents) - cents(input.outsourcedCost), status: "PENDING_VALIDATION", createdById: user.id, updatedById: user.id }] });
+      }
+      await tx.graphicQuoteVersion.create({ data: { tenantId: user.tenantId, quoteId: created.id, version: 1, snapshot: JSON.stringify({ quote: created, items, totals }), createdById: user.id, updatedById: user.id } });
+      if (approvalReasons.length) {
+        await tx.graphicApprovalRequest.create({ data: { tenantId: user.tenantId, quoteId: created.id, reason: approvalReasons.join(" ") || "Revisao comercial necessaria.", requestedById: user.id, createdById: user.id, updatedById: user.id } });
       }
       if (opportunity) {
         await tx.graphicOpportunity.update({ where: { id: opportunity.id }, data: { status: "QUOTE_CREATED", updatedById: user.id } });
@@ -150,6 +101,9 @@ export async function PUT(request: NextRequest) {
       const statusMap: Record<string, string> = { send: "SENT", refuse: "REFUSED", cancel: "CANCELLED" };
       const nextStatus = statusMap[action];
       const reason = String(body.reason || body.note || "");
+      const nextFollowUp = action === "send" ? dateOrNull(body.nextFollowUp) : null;
+      const nextAction = String(body.nextAction || "").trim() || "Retornar orcamento enviado";
+      if (action === "send" && !nextFollowUp) return NextResponse.json({ error: "Informe a data do retorno comercial." }, { status: 400 });
       const result = await db.$transaction(async (tx: any) => {
         const quote = await tx.graphicQuote.findFirst({ where: { id, tenantId: user.tenantId }, include: { versions: true, items: true } });
         if (!quote) throw new Error("QUOTE_NOT_FOUND");
@@ -166,6 +120,14 @@ export async function PUT(request: NextRequest) {
         await tx.graphicQuoteVersion.create({
           data: { tenantId: user.tenantId, quoteId: id, version: nextQuoteVersion(quote.versions), snapshot: JSON.stringify({ action, status: nextStatus, reason, quote, items: quote.items }), createdById: user.id, updatedById: user.id }
         });
+        if (action === "send" && nextFollowUp) {
+          await tx.graphicTask.create({
+            data: { tenantId: user.tenantId, opportunityId: quote.opportunityId, assignedToId: quote.responsibleId || user.id, title: `${nextAction}: orcamento #${quote.number}`, dueDate: nextFollowUp, createdById: user.id, updatedById: user.id }
+          });
+          if (quote.opportunityId) {
+            await tx.graphicOpportunity.update({ where: { id: quote.opportunityId }, data: { nextAction, nextFollowUp, qualityAlert: null, updatedById: user.id } });
+          }
+        }
         return updated;
       });
       await audit({ tenantId: user.tenantId, userId: user.id, action: `graphic_${action}_quote`, entity: "GraphicQuote", entityId: id, request, metadata: { status: nextStatus } });
@@ -267,7 +229,12 @@ export async function PUT(request: NextRequest) {
     const result = await db.$transaction(async (tx: any) => {
       const quote = await tx.graphicQuote.findFirst({ where: { id, tenantId: user.tenantId }, include: { items: true, approvals: { where: { status: "PENDING" } } } });
       if (!quote) throw new Error("QUOTE_NOT_FOUND");
-      if (quote.status === "APPROVED") throw new Error("QUOTE_ALREADY_APPROVED");
+      if (quote.status === "APPROVED") {
+        const existingOrder = await tx.graphicOrder.findFirst({ where: { tenantId: user.tenantId, quoteId: quote.id } });
+        const existingProduction = existingOrder ? await tx.graphicProductionOrder.findFirst({ where: { tenantId: user.tenantId, orderId: existingOrder.id } }) : null;
+        if (existingOrder && existingProduction) return { quote, order: existingOrder, production: existingProduction, alreadyApproved: true };
+        throw new Error("QUOTE_ALREADY_APPROVED");
+      }
       if (new Date(quote.validUntil) < new Date()) throw new Error("QUOTE_EXPIRED");
       if (quote.approvalRequired || quote.approvals.length) throw new Error("QUOTE_COMMERCIAL_APPROVAL_PENDING");
       const orderNumber = await nextNumber(tx, user.tenantId, "graphicOrder");

@@ -30,7 +30,7 @@ const rolePermissions: Record<GraphicRole, GraphicPermission[]> = {
   GRAPHIC_OWNER: ["catalog:manage", "settings:manage", "opportunity:write", "quote:create", "quote:approve", "cost:view", "production:update", "receivable:update", "post-sale:update", "report:view", "inventory:view", "inventory:manage", "purchase:manage"],
   GRAPHIC_ADMIN: ["catalog:manage", "settings:manage", "quote:approve", "cost:view", "receivable:update", "report:view", "inventory:view", "inventory:manage", "purchase:manage"],
   GRAPHIC_SALES: ["opportunity:write", "quote:create", "post-sale:update"],
-  GRAPHIC_OPERATIONS: ["production:update", "inventory:view"],
+  GRAPHIC_OPERATIONS: ["opportunity:write", "quote:create", "quote:approve", "post-sale:update", "production:update", "inventory:view"],
   GRAPHIC_ADVISOR: ["report:view", "inventory:view"]
 };
 
@@ -97,14 +97,16 @@ export function hasGraphicPermission(role: GraphicRole, permission: GraphicPermi
   return permissionsForGraphicRole(role).has(permission);
 }
 
-export type GraphicWorkspace = "commercial" | "administrative" | "operations" | "management" | "settings";
+export type GraphicWorkspace = "commercial" | "sales" | "administrative" | "operations" | "management" | "settings";
 
 export function hasGraphicWorkspaceAccess(role: GraphicRole, workspace: GraphicWorkspace) {
   if (role === "GRAPHIC_OWNER") return true;
   if (workspace === "commercial") return role === "GRAPHIC_SALES";
+  if (workspace === "sales") return role === "GRAPHIC_OPERATIONS";
   if (workspace === "administrative") return role === "GRAPHIC_ADMIN";
   if (workspace === "operations") return role === "GRAPHIC_OPERATIONS";
-  return role === "GRAPHIC_ADVISOR";
+  if (workspace === "management") return role === "GRAPHIC_ADMIN" || role === "GRAPHIC_ADVISOR";
+  return false;
 }
 
 export async function getGraphicRole(user: GraphicUser): Promise<GraphicRole> {
@@ -153,7 +155,11 @@ export async function ensureGraphicDefaults(tenantId: string) {
     ["quantityMultiplierEnabled", "true"],
     ["fileRetentionDays", "1825"],
     ["fileLgpdClassification", "CONFIDENTIAL"],
-    ["fileRemovalPolicy", "SOFT_DELETE_ONLY"]
+    ["fileRemovalPolicy", "SOFT_DELETE_ONLY"],
+    ["postSaleDays", "7"],
+    ["lossReasons", "Preco, Prazo, Concorrencia, Sem retorno, Outro"],
+    ["reworkReasons", "Arte, Medida, Material, Acabamento, Alteracao do cliente, Outro"],
+    ["productionIssueCategories", "Falta de material, Informacao incorreta, Arte, Equipamento, Defeito, Alteracao do cliente, Outro"]
   ];
 
   await prisma.$transaction(
@@ -219,6 +225,10 @@ export async function getGraphicSettings(tenantId: string) {
     quantityMultiplierEnabled: value.quantityMultiplierEnabled !== "false",
     fileRetentionDays: Number(value.fileRetentionDays || 1825),
     fileLgpdClassification: value.fileLgpdClassification || "CONFIDENTIAL",
-    fileRemovalPolicy: value.fileRemovalPolicy || "SOFT_DELETE_ONLY"
+    fileRemovalPolicy: value.fileRemovalPolicy || "SOFT_DELETE_ONLY",
+    postSaleDays: Math.max(1, Number(value.postSaleDays || 7)),
+    lossReasons: value.lossReasons || "Preco, Prazo, Concorrencia, Sem retorno, Outro",
+    reworkReasons: value.reworkReasons || "Arte, Medida, Material, Acabamento, Alteracao do cliente, Outro",
+    productionIssueCategories: value.productionIssueCategories || "Falta de material, Informacao incorreta, Arte, Equipamento, Defeito, Alteracao do cliente, Outro"
   };
 }

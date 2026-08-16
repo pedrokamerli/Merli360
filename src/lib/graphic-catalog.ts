@@ -22,6 +22,11 @@ export function normalizeGraphicSetting(key: string, value: unknown) {
     if (!Number.isInteger(days) || days < 30 || days > 3650) throw new Error("Retencao de arquivos deve ficar entre 30 e 3650 dias.");
     return String(days);
   }
+  if (key === "postSaleDays") {
+    const days = Number(normalized || 0);
+    if (!Number.isInteger(days) || days < 1 || days > 365) throw new Error("Prazo de pos-venda deve ficar entre 1 e 365 dias.");
+    return String(days);
+  }
   if (key === "fileLgpdClassification") {
     const classification = normalized.toUpperCase();
     if (!["PUBLIC", "INTERNAL", "CONFIDENTIAL", "SENSITIVE"].includes(classification)) throw new Error("Classificacao LGPD de arquivo invalida.");

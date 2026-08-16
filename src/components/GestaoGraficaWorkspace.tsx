@@ -19,6 +19,11 @@ type GraphicTabMeta = {
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const brl = (cents: number) => money.format((cents || 0) / 100);
 const day = (value?: string) => value ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value)) : "Sem data";
+const labelForStatus = (status?: string) => ({
+  OPEN: "Em aberto", PARTIAL: "Parcial", PAID: "Recebido", OVERDUE: "Vencido", CANCELLED: "Cancelado",
+  PENDING: "Aguardando", RELEASED: "Liberada", IN_PROGRESS: "Em producao", BLOCKED: "Com impedimento", COMPLETED: "Concluida",
+  SENT: "Enviado", APPROVED: "Aprovado", REFUSED: "Recusado", DRAFT: "Rascunho", DELIVERED: "Entregue", ACCEPTED: "Aceita"
+} as Record<string, string>)[status || ""] || status || "Nao informado";
 const graphicRoleOptions = [
   ["GRAPHIC_OWNER", "Dono"],
   ["GRAPHIC_ADMIN", "Administrativo"],
@@ -96,7 +101,7 @@ function operationLane(item: AnyRow, deliveries: AnyRow[]) {
   return "Entrada";
 }
 
-export function GestaoGraficaWorkspace({ workspace }: { workspace?: GraphicWorkspace } = {}) {
+export function GestaoGraficaWorkspace({ workspace, scope = "all" }: { workspace?: GraphicWorkspace; scope?: "all" | "mine" } = {}) {
   const [data, setData] = useState<AnyRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -106,12 +111,13 @@ export function GestaoGraficaWorkspace({ workspace }: { workspace?: GraphicWorks
   const [importPreview, setImportPreview] = useState<AnyRow | null>(null);
   const [opportunityForm, setOpportunityForm] = useState(opportunityInitial);
   const [quoteForm, setQuoteForm] = useState({ ...quoteInitial, validUntil: todayPlus(7) });
+  const [extraQuoteItems, setExtraQuoteItems] = useState<Array<typeof quoteInitial>>([]);
   const initialTab: GraphicTab = workspace === "operations" ? "production" : workspace === "administrative" ? "finance" : workspace === "management" ? "dashboard" : workspace === "settings" ? "base" : "commercial";
   const [activeTab, setActiveTab] = useState<GraphicTab>(initialTab);
 
   async function load() {
     setLoading(true);
-    const response = await fetch("/api/gestao-grafica/summary", { cache: "no-store" });
+    const response = await fetch(`/api/gestao-grafica/summary${scope === "mine" ? "?scope=mine" : ""}`, { cache: "no-store" });
     const payload = await response.json();
     setLoading(false);
     if (!response.ok) {
@@ -128,6 +134,23 @@ export function GestaoGraficaWorkspace({ workspace }: { workspace?: GraphicWorks
     if (!search.trim()) return rows;
     const term = search.toLowerCase();
     return rows.filter((item: AnyRow) => [item.title, item.productInterest, item.source, item.nextAction].join(" ").toLowerCase().includes(term));
+  }, [data, search]);
+
+  const globalSearchResults = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return [] as Array<{ key: string; label: string; title: string; detail: string; href?: string }>;
+    const matches = (value: unknown) => String(value || "").toLowerCase().includes(term);
+    const rows: Array<{ key: string; label: string; title: string; detail: string; href?: string }> = [];
+    for (const client of data?.clients || []) {
+      if (matches(client.name) || matches(client.phone) || matches(client.email)) rows.push({ key: `client-${client.id}`, label: "Cliente", title: client.name, detail: [client.phone, client.email, client.city].filter(Boolean).join(" | ") || "Cadastro CRM", href: `/gestao-grafica/clientes/${client.id}` });
+    }
+    for (const quote of data?.quotes || []) {
+      if (matches(quote.number) || matches(quote.client?.name) || matches(quote.client?.phone)) rows.push({ key: `quote-${quote.id}`, label: "Orcamento", title: `#${quote.number} - ${quote.client?.name || "Cliente"}`, detail: `${brl(quote.totalPriceCents)} | ${day(quote.validUntil)}`, href: quote.clientId ? `/gestao-grafica/clientes/${quote.clientId}` : undefined });
+    }
+    for (const order of data?.orders || []) {
+      if (matches(order.number) || matches(order.clientName)) rows.push({ key: `order-${order.id}`, label: "Pedido", title: `#${order.number} - ${order.clientName || "Cliente"}`, detail: order.productName || "Produto a definir", href: order.clientId ? `/gestao-grafica/clientes/${order.clientId}` : undefined });
+    }
+    return rows.slice(0, 12);
   }, [data, search]);
 
   const metrics = data?.metrics || {};
@@ -147,6 +170,7 @@ export function GestaoGraficaWorkspace({ workspace }: { workspace?: GraphicWorks
   const stages = data?.stages || [];
   const users = data?.users || [];
   const settingMap = Object.fromEntries(settings.map((item: AnyRow) => [item.key, item.value]));
+  const operationalSettings = data?.operationalSettings || {};
   const activeStages = stages.length ? stages : [{ name: "OPEN" }, { name: "QUOTE_CREATED" }, { name: "WON" }, { name: "LOST" }];
   const pipelineStages = activeStages.map((stage: AnyRow) => ({ ...stage, items: (data?.opportunities || []).filter((item: AnyRow) => item.status === stage.name) }));
   const allTabs: GraphicTabMeta[] = [
@@ -260,6 +284,21 @@ export function GestaoGraficaWorkspace({ workspace }: { workspace?: GraphicWorks
     });
   }
 
+  function applyProductToExtraQuote(index: number, productId: string) {
+    const selected = products.find((item: AnyRow) => item.id === productId);
+    const component = selected?.components?.[0];
+    const productProcess = selected?.processes?.[0];
+    setExtraQuoteItems((items) => items.map((item, current) => current !== index ? item : {
+      ...item,
+      productId,
+      description: selected?.name || item.description,
+      materialCost: component?.material?.currentCostCents ? String(component.material.currentCostCents / 100) : item.materialCost,
+      processCost: productProcess?.process?.costCents ? String(productProcess.process.costCents / 100) : item.processCost,
+      wastePercent: component?.wastePercent !== undefined ? String(component.wastePercent) : item.wastePercent,
+      unit: selected?.unit || item.unit
+    }));
+  }
+
   async function updateOpportunity(id: string, payload: AnyRow, success = "Oportunidade atualizada.") {
     setSaving(true);
     setMessage("");
@@ -282,7 +321,7 @@ export function GestaoGraficaWorkspace({ workspace }: { workspace?: GraphicWorks
   async function moveOpportunityStage(item: AnyRow, status: string) {
     const payload: AnyRow = { status, nextAction: item.nextAction, nextFollowUp: item.nextFollowUp };
     if (status === "LOST") {
-      const lossReason = prompt("Motivo da perda");
+      const lossReason = prompt(`Motivo da perda (${operationalSettings.lossReasons || "Preco, Prazo, Concorrencia, Sem retorno, Outro"})`);
       if (!lossReason) return;
       payload.lossReason = lossReason;
     }
@@ -304,7 +343,7 @@ export function GestaoGraficaWorkspace({ workspace }: { workspace?: GraphicWorks
   }
 
   async function loseOpportunity(item: AnyRow) {
-    const lossReason = prompt("Motivo da perda");
+    const lossReason = prompt(`Motivo da perda (${operationalSettings.lossReasons || "Preco, Prazo, Concorrencia, Sem retorno, Outro"})`);
     if (!lossReason) return;
     await updateOpportunity(item.id, { status: "LOST", lossReason, note: lossReason, result: "Oportunidade perdida" }, "Oportunidade marcada como perdida.");
   }
@@ -316,7 +355,7 @@ export function GestaoGraficaWorkspace({ workspace }: { workspace?: GraphicWorks
     const response = await fetch("/api/gestao-grafica/quotes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(quoteForm)
+      body: JSON.stringify({ ...quoteForm, items: [quoteForm, ...extraQuoteItems] })
     });
     const payload = await response.json();
     setSaving(false);
@@ -325,6 +364,7 @@ export function GestaoGraficaWorkspace({ workspace }: { workspace?: GraphicWorks
       return;
     }
     setQuoteForm({ ...quoteInitial, validUntil: todayPlus(7) });
+    setExtraQuoteItems([]);
     setMessage(payload.item.approvalRequired ? "Orcamento criado com alerta de aprovacao." : "Orcamento criado e pronto para aprovacao.");
     await load();
   }
@@ -350,11 +390,14 @@ export function GestaoGraficaWorkspace({ workspace }: { workspace?: GraphicWorks
   async function quoteAction(id: string, action: string) {
     const reason = ["refuse", "cancel", "approve-commercial"].includes(action) ? prompt(action === "refuse" ? "Motivo da recusa" : action === "cancel" ? "Motivo do cancelamento" : "Observacao da aprovacao comercial") || "" : "";
     if (["refuse", "cancel"].includes(action) && !reason) return;
+    const nextAction = action === "send" ? prompt("Proximo passo comercial", "Retornar orcamento enviado") || "" : "";
+    const nextFollowUp = action === "send" ? prompt("Data do retorno (AAAA-MM-DD)", todayPlus(1)) || "" : "";
+    if (action === "send" && (!nextAction || !nextFollowUp)) return;
     setSaving(true);
     const response = await fetch("/api/gestao-grafica/quotes", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, action, reason })
+      body: JSON.stringify({ id, action, reason, nextAction, nextFollowUp })
     });
     const payload = await response.json();
     setSaving(false);
@@ -525,7 +568,7 @@ export function GestaoGraficaWorkspace({ workspace }: { workspace?: GraphicWorks
       <header className="surface-panel flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between">
         <div className="min-w-0">
           <p className="eyebrow">Modulo nativo</p>
-          <h1 className="text-2xl font-black tracking-tight text-slate-950 md:text-3xl">Gestao da Grafica</h1>
+            <h1 className="text-2xl font-black tracking-tight text-slate-950 md:text-3xl">{scope === "mine" ? "Minhas vendas" : "Gestao da Grafica"}</h1>
           <p className="mt-1 max-w-3xl text-sm font-medium text-slate-500">Fluxo operacional da grafica: cliente, orcamento, producao, entrega, recebimento e pos-venda, cada etapa em sua propria aba.</p>
         </div>
         <button className="secondary-action inline-flex items-center gap-2 px-4 py-2" onClick={load} type="button">
@@ -617,6 +660,8 @@ export function GestaoGraficaWorkspace({ workspace }: { workspace?: GraphicWorks
         <GroupBox title="Resultado por cliente" rows={groups.revenueByClient || []} money />
       </section> : null}
 
+      {activeTab === "dashboard" ? <section className="surface-panel p-4"><div className="mb-3 flex items-center justify-between gap-2"><div><p className="eyebrow">Qualidade de dados</p><h2 className="text-lg font-black text-slate-950">Pendencias que travam o processo</h2></div><span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700">{(data?.qualityItems || []).filter((item: AnyRow) => Number(item.count || 0) > 0).length} alerta(s)</span></div><div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">{(data?.qualityItems || []).map((item: AnyRow) => <article key={item.key} className={Number(item.count || 0) ? "rounded-lg border border-amber-200 bg-amber-50 p-3" : "rounded-lg border border-emerald-200 bg-emerald-50 p-3"}><p className="text-xs font-black text-slate-700">{item.label}</p><p className="mt-1 text-2xl font-black text-slate-950">{item.count === null ? "Restrito" : item.count}</p><p className="mt-1 text-xs font-semibold text-slate-500">{item.action}</p></article>)}</div></section> : null}
+
       {workspace === "commercial" && activeTab === "commercial" ? <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <MetricCard label="Retornos atrasados" value={String(metrics.overdueReturns || 0)} hint="prioridade do dia" tone={metrics.overdueReturns ? "danger" : "good"} />
         <MetricCard label="Retornos hoje" value={String(metrics.returnsToday || 0)} hint="contatos agendados" tone={metrics.returnsToday ? "warn" : "good"} />
@@ -694,7 +739,11 @@ export function GestaoGraficaWorkspace({ workspace }: { workspace?: GraphicWorks
           ]} onSave={(payload) => saveCatalog("product", payload)} />
           <CatalogBox title="Material" fields={[
             { key: "name", placeholder: "Material" },
+            { key: "code", placeholder: "Codigo" },
             { key: "unit", placeholder: "Unidade", value: "m2" },
+            { key: "initialStock", placeholder: "Saldo inicial" },
+            { key: "minStock", placeholder: "Estoque minimo" },
+            { key: "location", placeholder: "Localizacao" },
             { key: "currentCost", placeholder: "Custo R$" },
             { key: "wastePercent", placeholder: "Perda %", value: "8" }
           ]} onSave={(payload) => saveCatalog("material", payload)} />
@@ -712,7 +761,8 @@ export function GestaoGraficaWorkspace({ workspace }: { workspace?: GraphicWorks
                 ["maxDiscountPercent", "Desconto maximo %"],
                 ["fixedCostRatePercent", "Custo fixo %"],
                 ["taxRatePercent", "Impostos %"],
-                ["commissionPercent", "Comissao %"]
+                ["commissionPercent", "Comissao %"],
+                ["postSaleDays", "Pos-venda apos entrega (dias)"]
               ].map(([key, label]) => (
                 <label key={key} className="grid grid-cols-[1fr_84px] items-center gap-2 text-xs font-black text-slate-500">
                   {label}
@@ -745,6 +795,14 @@ export function GestaoGraficaWorkspace({ workspace }: { workspace?: GraphicWorks
                     <option value="LEGAL_HOLD">Retencao legal</option>
                   </select>
                 </label>
+              </div>
+            </div>
+          ) : null}
+          {data?.canManageSettings ? (
+            <div className="rounded-lg border border-slate-200 bg-white p-3">
+              <h3 className="font-black text-slate-950">Motivos operacionais</h3>
+              <div className="mt-3 grid gap-2">
+                {[['lossReasons', 'Motivos de perda'], ['reworkReasons', 'Motivos de retrabalho'], ['productionIssueCategories', 'Categorias de problema']].map(([key, label]) => <label key={key} className="grid gap-1 text-xs font-black text-slate-500"><span>{label}</span><textarea className={inputClass} defaultValue={settingMap[key] || ''} onBlur={(event) => saveCatalog('setting', { key, value: event.target.value })} rows={3} /></label>)}
               </div>
             </div>
           ) : null}
@@ -850,7 +908,19 @@ export function GestaoGraficaWorkspace({ workspace }: { workspace?: GraphicWorks
             <input className={inputClass} placeholder="Preco negociado R$" value={quoteForm.negotiatedPrice} onChange={(event) => setQuoteForm({ ...quoteForm, negotiatedPrice: event.target.value })} />
             <input className={inputClass} placeholder="Desconto R$" value={quoteForm.discount} onChange={(event) => setQuoteForm({ ...quoteForm, discount: event.target.value })} />
             <input className={inputClass} placeholder="Urgencia R$" value={quoteForm.urgency} onChange={(event) => setQuoteForm({ ...quoteForm, urgency: event.target.value })} />
+            <input className={inputClass} placeholder="Prazo em dias" value={quoteForm.deadlineDays} onChange={(event) => setQuoteForm({ ...quoteForm, deadlineDays: event.target.value })} />
+            <input className={`${inputClass} sm:col-span-2`} placeholder="Condicao de pagamento" value={quoteForm.paymentTerms} onChange={(event) => setQuoteForm({ ...quoteForm, paymentTerms: event.target.value })} />
+            <input className={`${inputClass} sm:col-span-3`} placeholder="Observacoes para o cliente" value={quoteForm.notes} onChange={(event) => setQuoteForm({ ...quoteForm, notes: event.target.value })} />
           </div>
+          {extraQuoteItems.map((item, index) => <div key={index} className="mt-3 grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:grid-cols-3">
+            <div className="flex items-center justify-between sm:col-span-3"><p className="text-xs font-black text-slate-700">Item adicional {index + 2}</p><button className="icon-action" type="button" title="Remover item" onClick={() => setExtraQuoteItems((items) => items.filter((_, current) => current !== index))}><Trash2 size={15} /></button></div>
+            <select className={`${inputClass} sm:col-span-3`} value={item.productId} onChange={(event) => applyProductToExtraQuote(index, event.target.value)}><option value="">Produto cadastrado</option>{products.map((product: AnyRow) => <option key={product.id} value={product.id}>{product.name}</option>)}</select>
+            <input className={`${inputClass} sm:col-span-3`} required placeholder="Descricao do item" value={item.description} onChange={(event) => setExtraQuoteItems((items) => items.map((current, position) => position === index ? { ...current, description: event.target.value } : current))} />
+            <input className={inputClass} required placeholder="Qtd" value={item.quantity} onChange={(event) => setExtraQuoteItems((items) => items.map((current, position) => position === index ? { ...current, quantity: event.target.value } : current))} />
+            <input className={inputClass} placeholder="Preco negociado R$" value={item.negotiatedPrice} onChange={(event) => setExtraQuoteItems((items) => items.map((current, position) => position === index ? { ...current, negotiatedPrice: event.target.value } : current))} />
+            <input className={inputClass} placeholder="Prazo em dias" value={item.deadlineDays} onChange={(event) => setExtraQuoteItems((items) => items.map((current, position) => position === index ? { ...current, deadlineDays: event.target.value } : current))} />
+          </div>)}
+          <button className="secondary-action mt-3 inline-flex w-full items-center justify-center gap-2 py-2 text-sm" type="button" onClick={() => setExtraQuoteItems((items) => [...items, { ...quoteInitial, validUntil: quoteForm.validUntil, paymentTerms: quoteForm.paymentTerms }])}><Plus size={15} />Adicionar item ao orcamento</button>
           <button className="primary-action mt-4 inline-flex w-full items-center justify-center gap-2 py-3" disabled={saving}>
             <FileText size={16} /> Gerar orcamento
           </button>
@@ -890,8 +960,9 @@ export function GestaoGraficaWorkspace({ workspace }: { workspace?: GraphicWorks
         <div className="surface-panel p-4">
           <div className="mb-3 flex items-center gap-2">
             <Search size={17} />
-            <input className="min-w-0 flex-1 bg-transparent text-sm font-bold outline-none" placeholder="Buscar oportunidade" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <input className="min-w-0 flex-1 bg-transparent text-sm font-bold outline-none" placeholder="Buscar cliente, telefone, orcamento ou pedido" value={search} onChange={(event) => setSearch(event.target.value)} />
           </div>
+          {search.trim() ? <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-2"><p className="px-1 pb-2 text-[10px] font-black uppercase text-slate-500">Resultados da base</p>{globalSearchResults.length ? <div className="space-y-1">{globalSearchResults.map((item) => item.href ? <a key={item.key} href={item.href} className="block rounded-md bg-white px-3 py-2 hover:bg-emerald-50"><p className="text-[10px] font-black uppercase text-emerald-700">{item.label}</p><p className="text-sm font-black text-slate-800">{item.title}</p><p className="text-xs font-semibold text-slate-500">{item.detail}</p></a> : <div key={item.key} className="rounded-md bg-white px-3 py-2"><p className="text-[10px] font-black uppercase text-emerald-700">{item.label}</p><p className="text-sm font-black text-slate-800">{item.title}</p><p className="text-xs font-semibold text-slate-500">{item.detail}</p></div>)}</div> : <p className="rounded-md bg-white p-3 text-xs font-bold text-slate-500">Nenhum registro encontrado nesta base.</p>}</div> : null}
           <div className="space-y-2">
             {filteredOpportunities.length ? filteredOpportunities.map((item: AnyRow) => (
               <article key={item.id} className="rounded-lg border border-slate-200 bg-white p-3">
@@ -987,7 +1058,7 @@ export function GestaoGraficaWorkspace({ workspace }: { workspace?: GraphicWorks
         </div>
         <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
           {productionRows.length ? productionRows.map((item: AnyRow) => (
-            <ProductionCard key={item.id} item={item} materials={materials} onStatus={updateProduction} onAction={updateProductionAction} onUpload={uploadGraphicAttachment} onRemoveAttachment={removeGraphicAttachment} />
+            <ProductionCard key={item.id} item={item} materials={materials} issueCategories={String(operationalSettings.productionIssueCategories || "Falta de material, Informacao incorreta, Arte, Equipamento, Defeito, Alteracao do cliente, Outro").split(",").map((category: string) => category.trim()).filter(Boolean)} onStatus={updateProduction} onAction={updateProductionAction} onUpload={uploadGraphicAttachment} onRemoveAttachment={removeGraphicAttachment} />
           )) : <p className="rounded-lg bg-slate-50 p-4 text-sm font-bold text-slate-500">Nenhuma ordem de producao.</p>}
         </div>
       </section> : null}
@@ -1067,7 +1138,7 @@ export function GestaoGraficaWorkspace({ workspace }: { workspace?: GraphicWorks
             {receivableRows.length ? receivableRows.map((item: AnyRow) => (
               <article key={item.id} className="rounded-lg border border-slate-200 bg-white p-3">
                 <h3 className="font-black text-slate-950">{brl(item.amountCents - item.receivedCents)} pendente</h3>
-                <p className="text-xs font-semibold text-slate-500">Status {item.status} | vence {day(item.dueDate)} | {item.notes || "Parcela"}</p>
+                <p className="text-xs font-semibold text-slate-500">{labelForStatus(item.status)} | vence {day(item.dueDate)} | {item.notes || "Parcela"}</p>
                 <p className="mt-1 text-xs font-semibold text-slate-500">Recebido {brl(item.receivedCents)} de {brl(item.amountCents)}</p>
                 {item.status !== "PAID" ? (
                   <button className="primary-action mt-3 inline-flex w-full items-center justify-center py-2 text-xs" type="button" onClick={() => registerPayment(item.id)}>Registrar recebimento</button>
@@ -1089,7 +1160,7 @@ export function GestaoGraficaWorkspace({ workspace }: { workspace?: GraphicWorks
             {postSaleRows.length ? postSaleRows.map((item: AnyRow) => (
               <article key={item.id} className="rounded-lg border border-slate-200 bg-white p-3">
                 <h3 className="font-black text-slate-950">Pedido #{item.order?.number || "-"}</h3>
-                <p className="text-xs font-semibold text-slate-500">Status {item.status} | satisfacao {item.satisfaction || "-"}</p>
+                <p className="text-xs font-semibold text-slate-500">{labelForStatus(item.status)} | satisfacao {item.satisfaction || "-"}</p>
                 <p className="mt-1 text-sm text-slate-600">{item.note || "Sem observacao."}</p>
                 {item.newOpportunityId ? <p className="mt-2 rounded-md bg-emerald-50 p-2 text-xs font-bold text-emerald-700">Nova oportunidade criada.</p> : null}
                 {item.status === "OPEN" ? (
@@ -1145,6 +1216,9 @@ function CatalogList({ title, type, rows, value, onSave }: { title: string; type
       category: item.category || "",
       unit: item.unit || "",
       currentCost: item.currentCostCents !== undefined ? String(item.currentCostCents / 100) : "",
+      code: item.code || "",
+      minStock: item.minStock !== undefined ? String(item.minStock) : "",
+      location: item.location || "",
       cost: item.costCents !== undefined ? String(item.costCents / 100) : "",
       wastePercent: item.wastePercent !== undefined ? String(item.wastePercent) : "",
       processType: item.type || "INTERNAL",
@@ -1175,6 +1249,9 @@ function CatalogList({ title, type, rows, value, onSave }: { title: string; type
                 {type === "product" ? <input className={inputClass} placeholder="Categoria" value={draft.category || ""} onChange={(event) => setDraft({ ...draft, category: event.target.value })} /> : null}
                 <input className={inputClass} placeholder="Unidade" value={draft.unit || ""} onChange={(event) => setDraft({ ...draft, unit: event.target.value })} />
                 {type === "material" ? <input className={inputClass} placeholder="Custo R$" value={draft.currentCost || ""} onChange={(event) => setDraft({ ...draft, currentCost: event.target.value })} /> : null}
+                {type === "material" ? <input className={inputClass} placeholder="Codigo" value={draft.code || ""} onChange={(event) => setDraft({ ...draft, code: event.target.value })} /> : null}
+                {type === "material" ? <input className={inputClass} placeholder="Estoque minimo" value={draft.minStock || ""} onChange={(event) => setDraft({ ...draft, minStock: event.target.value })} /> : null}
+                {type === "material" ? <input className={inputClass} placeholder="Localizacao" value={draft.location || ""} onChange={(event) => setDraft({ ...draft, location: event.target.value })} /> : null}
                 {type === "material" ? <input className={inputClass} placeholder="Perda %" value={draft.wastePercent || ""} onChange={(event) => setDraft({ ...draft, wastePercent: event.target.value })} /> : null}
                 {type === "process" ? <input className={inputClass} placeholder="Custo R$" value={draft.cost || ""} onChange={(event) => setDraft({ ...draft, cost: event.target.value })} /> : null}
                 <div className="grid grid-cols-2 gap-2">
@@ -1225,7 +1302,7 @@ function parseChecklist(value: unknown) {
   }
 }
 
-function ProductionCard({ item, materials, onStatus, onAction, onUpload, onRemoveAttachment }: { item: AnyRow; materials: AnyRow[]; onStatus: (id: string, status: string, extra?: AnyRow) => Promise<void>; onAction: (id: string, payload: AnyRow, success?: string) => Promise<boolean>; onUpload: (file: File, linkedModel: string, linkedId: string, purpose?: string) => Promise<boolean>; onRemoveAttachment: (id: string) => Promise<boolean> }) {
+function ProductionCard({ item, materials, issueCategories, onStatus, onAction, onUpload, onRemoveAttachment }: { item: AnyRow; materials: AnyRow[]; issueCategories: string[]; onStatus: (id: string, status: string, extra?: AnyRow) => Promise<void>; onAction: (id: string, payload: AnyRow, success?: string) => Promise<boolean>; onUpload: (file: File, linkedModel: string, linkedId: string, purpose?: string) => Promise<boolean>; onRemoveAttachment: (id: string) => Promise<boolean> }) {
   const checklist = parseChecklist(item.checklist);
   const checklistItems = [
     ["arte", "Arte"],
@@ -1263,12 +1340,20 @@ function ProductionCard({ item, materials, onStatus, onAction, onUpload, onRemov
     await onAction(item.id, { action: "rework", reason, impact, correctiveAction }, "Retrabalho registrado.");
   }
 
+  async function registerIssue() {
+    const category = prompt(`Categoria do problema: ${issueCategories.join(", ")}`, issueCategories[0] || "Outro");
+    if (!category) return;
+    const note = prompt("Descreva o problema e a acao necessaria") || "";
+    if (!note) return;
+    await onAction(item.id, { action: "issue", category, note }, "Ocorrencia registrada no historico.");
+  }
+
   return (
     <article className="rounded-lg border border-slate-200 bg-white p-3">
       <div className="flex items-start justify-between gap-2">
         <div>
           <h3 className="font-black text-slate-950">Pedido #{item.order?.number || "-"}</h3>
-          <p className="text-xs font-semibold text-slate-500">Status {item.status} | promessa {day(item.promisedAt)} | {(item.attachments || []).length} arquivo(s)</p>
+          <p className="text-xs font-semibold text-slate-500">{labelForStatus(item.status)} | promessa {day(item.promisedAt)} | {(item.attachments || []).length} arquivo(s)</p>
         </div>
         <span className={missing ? "rounded-full bg-amber-50 px-2 py-1 text-[10px] font-black text-amber-700" : "rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700"}>
           {missing ? `${missing} pend.` : "Checklist ok"}
@@ -1310,7 +1395,7 @@ function ProductionCard({ item, materials, onStatus, onAction, onUpload, onRemov
           <div key={step.id} className="rounded-md border border-slate-100 p-2">
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs font-black text-slate-700">{step.name}</p>
-              <span className="text-[10px] font-black text-slate-400">{step.status}</span>
+              <span className="text-[10px] font-black text-slate-400">{labelForStatus(step.status)}</span>
             </div>
             <div className="mt-2 grid grid-cols-2 gap-2">
               <button className="secondary-action py-2 text-xs" onClick={() => updateStep(step, "IN_PROGRESS")} type="button">Iniciar etapa</button>
@@ -1324,6 +1409,7 @@ function ProductionCard({ item, materials, onStatus, onAction, onUpload, onRemov
         <button className="secondary-action py-2 text-xs" onClick={() => onStatus(item.id, "RELEASED")} type="button">Liberar</button>
         <button className="secondary-action py-2 text-xs" onClick={() => onStatus(item.id, "IN_PROGRESS")} type="button">Iniciar</button>
         <button className="secondary-action py-2 text-xs" onClick={registerConsumption} type="button">Consumo</button>
+        <button className="secondary-action py-2 text-xs" onClick={registerIssue} type="button">Problema</button>
         <button className="secondary-action py-2 text-xs" onClick={registerRework} type="button">Retrabalho</button>
         <label className="secondary-action cursor-pointer py-2 text-center text-xs">
           Anexar

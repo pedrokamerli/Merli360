@@ -8,9 +8,9 @@ export default async function Page() {
   const user = await requireUser();
   if (!hasGraphicAccess(user)) redirect("/");
   const role = await getGraphicRole(user);
-  const destination = role === "GRAPHIC_ADMIN" ? "/gestao-grafica/administrative"
-    : role === "GRAPHIC_OPERATIONS" ? "/gestao-grafica/operations"
-      : role === "GRAPHIC_ADVISOR" ? "/gestao-grafica/management"
-        : "/gestao-grafica/commercial";
+  const destination = role === "GRAPHIC_ADMIN" ? "/gestao-grafica/administrativo"
+    : role === "GRAPHIC_OPERATIONS" ? "/gestao-grafica/operacao"
+      : role === "GRAPHIC_ADVISOR" ? "/gestao-grafica/gestao"
+        : "/gestao-grafica/comercial";
   redirect(destination);
 }

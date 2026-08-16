@@ -90,6 +90,17 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ item });
     }
 
+    if (action === "issue") {
+      const category = String(body.category || "").trim();
+      const issueNote = String(body.note || "").trim();
+      if (!category || !issueNote) return NextResponse.json({ error: "Informe categoria e descricao do problema." }, { status: 400 });
+      const item = await db.$transaction(async (tx: any) => {
+        return tx.graphicProductionEvent.create({ data: { tenantId: user.tenantId, productionOrderId: id, userId: user.id, action: "ISSUE_RECORDED", note: `[${category}] ${issueNote}`, createdById: user.id, updatedById: user.id } });
+      });
+      await audit({ tenantId: user.tenantId, userId: user.id, action: "graphic_register_production_issue", entity: "GraphicProductionOrder", entityId: id, request, metadata: { category } });
+      return NextResponse.json({ item });
+    }
+
     if (!status) return NextResponse.json({ error: "Informe o novo status." }, { status: 400 });
     if (["BLOCKED", "CANCELLED"].includes(status) && !note) return NextResponse.json({ error: "Informe o motivo." }, { status: 400 });
     const checklist = mergeChecklist(existing.checklist, {});
