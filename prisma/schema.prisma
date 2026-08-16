@@ -56,6 +56,10 @@ model Tenant {
   crmActivities     CrmActivity[]
   graphicProducts   GraphicProduct[]
   graphicMaterials  GraphicMaterial[]
+  graphicSuppliers  GraphicSupplier[]
+  graphicPurchases  GraphicPurchase[]
+  graphicInventoryMovements GraphicInventoryMovement[]
+  graphicMaterialNeeds GraphicMaterialNeed[]
   graphicProcesses  GraphicProcess[]
   graphicOpportunities GraphicOpportunity[]
   graphicQuotes     GraphicQuote[]
@@ -444,10 +448,16 @@ model GraphicMaterial {
   tenantId    String
   tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   name        String
+  code        String?
   unit        String   @default("m2")
+  currentStock Float   @default(0)
+  minStock     Float   @default(0)
   currentCostCents Int @default(0)
   wastePercent Float  @default(0)
   supplier    String?
+  supplierId  String?
+  supplierRef GraphicSupplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  location    String?
   status      String   @default("ACTIVE")
   validationStatus String @default("PENDING_VALIDATION")
   createdById String?
@@ -458,8 +468,121 @@ model GraphicMaterial {
   components  GraphicProductComponent[]
   quoteCosts  GraphicQuoteItemCost[]
   consumptions GraphicMaterialConsumption[]
+  inventoryMovements GraphicInventoryMovement[]
+  purchaseItems GraphicPurchaseItem[]
+  materialNeeds GraphicMaterialNeed[]
 
   @@unique([tenantId, name])
+  @@unique([tenantId, code])
+  @@index([tenantId, status])
+}
+
+model GraphicSupplier {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name        String
+  document    String?
+  email       String?
+  phone       String?
+  contactName String?
+  status      String   @default("ACTIVE")
+  notes       String?
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  materials   GraphicMaterial[]
+  purchases   GraphicPurchase[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, status])
+}
+
+model GraphicInventoryMovement {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  materialId  String
+  material    GraphicMaterial @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  type        String
+  quantity    Float
+  unitCostCents Int?
+  referenceType String?
+  referenceId String?
+  note        String?
+  occurredAt  DateTime @default(now())
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tenantId, referenceType, referenceId, materialId, type])
+  @@index([tenantId, materialId, occurredAt])
+  @@index([tenantId, type])
+}
+
+model GraphicPurchase {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  number      Int
+  supplierId  String?
+  supplier    GraphicSupplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  status      String   @default("DRAFT")
+  expectedAt  DateTime?
+  orderedAt   DateTime?
+  receivedAt  DateTime?
+  notes       String?
+  totalCents  Int      @default(0)
+  financialTitleId String?
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  items       GraphicPurchaseItem[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status, expectedAt])
+}
+
+model GraphicPurchaseItem {
+  id          String   @id @default(cuid())
+  tenantId    String
+  purchaseId  String
+  purchase    GraphicPurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  materialId  String
+  material    GraphicMaterial @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  quantity    Float
+  receivedQuantity Float @default(0)
+  unitCostCents Int
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, purchaseId])
+  @@index([tenantId, materialId])
+}
+
+model GraphicMaterialNeed {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  materialId  String
+  material    GraphicMaterial @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  productionOrderId String?
+  requiredQuantity Float
+  availableQuantity Float
+  missingQuantity Float
+  status      String   @default("OPEN")
+  resolvedByPurchaseId String?
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tenantId, productionOrderId, materialId])
   @@index([tenantId, status])
 }
 

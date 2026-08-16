@@ -6,6 +6,7 @@ import { MetricCard } from "@/components/MetricCard";
 
 type AnyRow = Record<string, any>;
 type GraphicTab = "dashboard" | "base" | "commercial" | "production" | "delivery" | "finance" | "postSale";
+type GraphicWorkspace = "commercial" | "administrative" | "operations" | "management" | "settings";
 type GraphicTabMeta = {
   key: GraphicTab;
   label: string;
@@ -19,12 +20,11 @@ const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL
 const brl = (cents: number) => money.format((cents || 0) / 100);
 const day = (value?: string) => value ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(value)) : "Sem data";
 const graphicRoleOptions = [
-  ["OWNER_ADMIN", "Dono/Admin"],
-  ["SALES_MANAGER", "Gerente vendas"],
-  ["SALES", "Vendas"],
-  ["PRODUCTION", "Producao"],
-  ["FINANCE", "Financeiro"],
-  ["ADVISOR", "Consultor"]
+  ["GRAPHIC_OWNER", "Dono"],
+  ["GRAPHIC_ADMIN", "Administrativo"],
+  ["GRAPHIC_SALES", "Comercial"],
+  ["GRAPHIC_OPERATIONS", "Operacao"],
+  ["GRAPHIC_ADVISOR", "Consultor"]
 ];
 
 const opportunityInitial = {
@@ -85,7 +85,18 @@ const graphicReports = [
   ["audit", "Auditoria"]
 ];
 
-export function GestaoGraficaWorkspace() {
+function operationLane(item: AnyRow, deliveries: AnyRow[]) {
+  const delivery = deliveries.find((row) => row.orderId === item.orderId);
+  if (delivery?.status === "ACCEPTED" || delivery?.status === "DELIVERED") return "Concluido";
+  if (delivery?.status === "SCHEDULED") return "Expedicao";
+  if (item.status === "COMPLETED") return "Finalizacao";
+  if (item.status === "IN_PROGRESS") return "Producao";
+  if (item.status === "RELEASED") return "Criacao";
+  if ((item.steps || []).some((step: AnyRow) => step.name === "Arte" && step.status === "IN_PROGRESS")) return "Criacao";
+  return "Entrada";
+}
+
+export function GestaoGraficaWorkspace({ workspace }: { workspace?: GraphicWorkspace } = {}) {
   const [data, setData] = useState<AnyRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -95,7 +106,8 @@ export function GestaoGraficaWorkspace() {
   const [importPreview, setImportPreview] = useState<AnyRow | null>(null);
   const [opportunityForm, setOpportunityForm] = useState(opportunityInitial);
   const [quoteForm, setQuoteForm] = useState({ ...quoteInitial, validUntil: todayPlus(7) });
-  const [activeTab, setActiveTab] = useState<GraphicTab>("commercial");
+  const initialTab: GraphicTab = workspace === "operations" ? "production" : workspace === "administrative" ? "finance" : workspace === "management" ? "dashboard" : workspace === "settings" ? "base" : "commercial";
+  const [activeTab, setActiveTab] = useState<GraphicTab>(initialTab);
 
   async function load() {
     setLoading(true);
@@ -137,7 +149,7 @@ export function GestaoGraficaWorkspace() {
   const settingMap = Object.fromEntries(settings.map((item: AnyRow) => [item.key, item.value]));
   const activeStages = stages.length ? stages : [{ name: "OPEN" }, { name: "QUOTE_CREATED" }, { name: "WON" }, { name: "LOST" }];
   const pipelineStages = activeStages.map((stage: AnyRow) => ({ ...stage, items: (data?.opportunities || []).filter((item: AnyRow) => item.status === stage.name) }));
-  const tabs: GraphicTabMeta[] = [
+  const allTabs: GraphicTabMeta[] = [
     { key: "dashboard", label: "Painel", count: String(metrics.qualityAlerts || 0), title: "Painel operacional", description: "Indicadores, alertas e relatorios para decidir o que atacar primeiro.", action: "Ver indicadores" },
     { key: "commercial", label: "Comercial", count: String(openOpportunities.length), title: "Comercial", description: "Cadastre clientes de qualquer canal, crie oportunidades, gere orcamentos e mova o funil.", action: "Atender cliente" },
     { key: "production", label: "Producao", count: String(productionRows.length), title: "Producao", description: "Acompanhe ordens, checklist, materiais, tempos, bloqueios e evidencias.", action: "Executar ordem" },
@@ -146,6 +158,12 @@ export function GestaoGraficaWorkspace() {
     { key: "postSale", label: "Pos-venda", count: String(postSaleRows.filter((item: AnyRow) => item.status === "OPEN").length), title: "Pos-venda", description: "Feche o atendimento depois da entrega e gere nova venda ou tarefa quando fizer sentido.", action: "Registrar contato" },
     { key: "base", label: "Base", count: String(products.length + materials.length + processes.length), title: "Base de custos", description: "Importe planilhas e mantenha produtos, materiais, processos, parametros, funil e papeis.", action: "Configurar base" }
   ];
+  const tabs = workspace === "commercial" ? allTabs.filter((tab) => ["commercial", "postSale"].includes(tab.key))
+    : workspace === "operations" ? allTabs.filter((tab) => ["production", "delivery"].includes(tab.key))
+      : workspace === "administrative" ? allTabs.filter((tab) => tab.key === "finance")
+        : workspace === "settings" ? allTabs.filter((tab) => tab.key === "base")
+          : workspace === "management" ? allTabs.filter((tab) => tab.key === "dashboard")
+            : allTabs;
   const activeTabMeta = tabs.find((tab) => tab.key === activeTab) || tabs[0];
 
   async function saveCatalog(type: string, payload: AnyRow) {
@@ -385,6 +403,12 @@ export function GestaoGraficaWorkspace() {
     return true;
   }
 
+  async function startCreation(item: AnyRow) {
+    const artStep = (item.steps || []).find((step: AnyRow) => step.name === "Arte");
+    if (!artStep) { setMessage("Esta ordem nao possui a etapa de criacao."); return; }
+    await updateProductionAction(item.id, { action: "step", stepId: artStep.id, stepStatus: "IN_PROGRESS" }, "Criacao iniciada.");
+  }
+
   async function uploadGraphicAttachment(file: File, linkedModel: string, linkedId: string, purpose = "PHOTO") {
     setSaving(true);
     setMessage("");
@@ -536,7 +560,7 @@ export function GestaoGraficaWorkspace() {
             <h2 className="text-xl font-black text-slate-950">{activeTabMeta.title}</h2>
             <p className="mt-1 max-w-3xl text-sm font-semibold text-slate-500">{activeTabMeta.description}</p>
           </div>
-          <div className="grid grid-cols-3 gap-2 text-center text-xs font-black sm:w-[360px]">
+          {!workspace ? <div className="grid grid-cols-3 gap-2 text-center text-xs font-black sm:w-[360px]">
             <button className="rounded-md border border-slate-200 bg-white px-2 py-2 text-slate-600" type="button" onClick={() => setActiveTab("commercial")}>
               {openOpportunities.length}
               <span className="block text-[10px] font-bold text-slate-400">vendas</span>
@@ -549,7 +573,7 @@ export function GestaoGraficaWorkspace() {
               {receivableRows.filter((item: AnyRow) => item.status !== "PAID").length}
               <span className="block text-[10px] font-bold text-slate-400">a receber</span>
             </button>
-          </div>
+          </div> : null}
         </div>
       </section>
 
@@ -591,6 +615,14 @@ export function GestaoGraficaWorkspace() {
         <GroupBox title="Vendas por segmento" rows={groups.salesBySegment || []} money />
         <GroupBox title="Resultado por produto" rows={groups.revenueByProduct || []} money />
         <GroupBox title="Resultado por cliente" rows={groups.revenueByClient || []} money />
+      </section> : null}
+
+      {workspace === "commercial" && activeTab === "commercial" ? <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <MetricCard label="Retornos atrasados" value={String(metrics.overdueReturns || 0)} hint="prioridade do dia" tone={metrics.overdueReturns ? "danger" : "good"} />
+        <MetricCard label="Retornos hoje" value={String(metrics.returnsToday || 0)} hint="contatos agendados" tone={metrics.returnsToday ? "warn" : "good"} />
+        <MetricCard label="Oportunidades abertas" value={String(metrics.opportunitiesOpen || 0)} hint="atendimentos em curso" />
+        <MetricCard label="Propostas aguardando" value={String(metrics.quotesSent || 0)} hint="enviadas ao cliente" />
+        <MetricCard label="Pos-vendas" value={String(metrics.postSalesOpen || 0)} hint="clientes para contatar" />
       </section> : null}
 
       {activeTab === "dashboard" ? <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -725,7 +757,7 @@ export function GestaoGraficaWorkspace() {
                     <span className="truncate text-slate-700">{item.name || item.username}</span>
                     <select
                       className={inputClass}
-                      defaultValue={item.graphicRole || "SALES"}
+                      defaultValue={item.graphicRole || "GRAPHIC_SALES"}
                       onChange={(event) => saveCatalog("setting", { key: `userRole:${item.id}`, value: event.target.value })}
                     >
                       {graphicRoleOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -932,6 +964,16 @@ export function GestaoGraficaWorkspace() {
               </article>
             )) : <p className="rounded-lg bg-slate-50 p-4 text-sm font-bold text-slate-500">Sem orcamentos pendentes.</p>}
           </div>
+        </div>
+      </section> : null}
+
+      {workspace === "operations" && activeTab === "production" ? <section className="surface-panel p-4">
+        <div className="mb-4"><p className="eyebrow">Jorge / Operacao</p><h2 className="text-lg font-black text-slate-950">O que preciso criar, produzir ou entregar hoje?</h2></div>
+        <div className="grid gap-3 xl:grid-cols-6">
+          {["Entrada", "Criacao", "Producao", "Finalizacao", "Expedicao", "Concluido"].map((lane) => {
+            const items = productionRows.filter((item: AnyRow) => operationLane(item, deliveryRows) === lane);
+            return <div key={lane} className="min-h-48 rounded-lg border border-slate-200 bg-slate-50 p-3"><div className="mb-3 flex items-center justify-between"><h3 className="text-xs font-black text-slate-700">{lane}</h3><span className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-slate-500">{items.length}</span></div><div className="space-y-2">{items.map((item: AnyRow) => { const delivery = deliveryRows.find((row: AnyRow) => row.orderId === item.orderId); return <article key={item.id} className="rounded-lg border border-slate-200 bg-white p-2"><p className="text-xs font-black text-slate-900">Pedido #{item.order?.number || "-"}</p><p className="mt-1 text-[10px] font-semibold text-slate-500">{item.order?.quote?.productInterest || "Produto"} | prazo {day(item.promisedAt)}</p>{lane === "Entrada" ? <button className="secondary-action mt-2 w-full py-1.5 text-[10px]" type="button" onClick={() => startCreation(item)}>Iniciar criacao</button> : null}{lane === "Criacao" && item.status === "RELEASED" ? <button className="secondary-action mt-2 w-full py-1.5 text-[10px]" type="button" onClick={() => updateProduction(item.id, "IN_PROGRESS")}>Iniciar producao</button> : null}{lane === "Producao" ? <button className="secondary-action mt-2 w-full py-1.5 text-[10px]" type="button" onClick={() => updateProduction(item.id, "COMPLETED")}>Concluir producao</button> : null}{lane === "Finalizacao" && delivery ? <button className="secondary-action mt-2 w-full py-1.5 text-[10px]" type="button" onClick={() => updateDelivery(delivery.id, "SCHEDULED")}>Liberar expedicao</button> : null}{lane === "Expedicao" && delivery ? <button className="secondary-action mt-2 w-full py-1.5 text-[10px]" type="button" onClick={() => updateDelivery(delivery.id, "DELIVERED")}>Marcar entregue</button> : null}</article>; })}{!items.length ? <p className="text-[10px] font-bold text-slate-400">Sem pedidos.</p> : null}</div></div>;
+          })}
         </div>
       </section> : null}
 

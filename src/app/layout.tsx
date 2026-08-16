@@ -5,6 +5,7 @@ import { PwaBoot } from "@/components/PwaBoot";
 import { OnboardingTour } from "@/components/OnboardingTour";
 import { GlobalAssistantButton } from "@/components/GlobalAssistantButton";
 import { getCurrentUser } from "@/lib/auth";
+import { getGraphicRole, hasGraphicAccess } from "@/lib/graphic";
 
 export const metadata: Metadata = {
   title: "Merli360",
@@ -15,6 +16,7 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const user = await getCurrentUser();
+  const graphicRole = user && hasGraphicAccess(user) ? await getGraphicRole(user) : undefined;
 
   return (
     <html lang="pt-BR">
@@ -22,7 +24,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         {user ? (
           <div className="app-shell min-h-screen">
             <PwaBoot />
-            <Sidebar user={user} />
+            <Sidebar user={{ ...user, graphicRole }} />
             <OnboardingTour brandName={user.tenant.brandName} tenantKind={user.tenant.kind} userName={user.username} />
             <main className="min-w-0 p-4 md:p-6 lg:p-8">{children}</main>
             <GlobalAssistantButton />

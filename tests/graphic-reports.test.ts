@@ -33,11 +33,11 @@ test("gera csv com cabecalho e valores formatados", () => {
 });
 
 test("respeita permissao por perfil operacional", () => {
-  assert.equal(canAccessGraphicReport("ADVISOR", "quotes"), true);
-  assert.equal(canAccessGraphicReport("ADVISOR", "receivables"), false);
-  assert.equal(canAccessGraphicReport("FINANCE", "receivables"), true);
-  assert.equal(canAccessGraphicReport("SALES", "audit"), false);
-  assert.equal(canAccessGraphicReport("OWNER_ADMIN", "audit"), true);
+  assert.equal(canAccessGraphicReport("GRAPHIC_ADVISOR", "quotes"), true);
+  assert.equal(canAccessGraphicReport("GRAPHIC_ADVISOR", "receivables"), false);
+  assert.equal(canAccessGraphicReport("GRAPHIC_ADMIN", "receivables"), true);
+  assert.equal(canAccessGraphicReport("GRAPHIC_SALES", "audit"), false);
+  assert.equal(canAccessGraphicReport("GRAPHIC_OWNER", "audit"), true);
 });
 
 test("formata booleano e datas dos relatorios", () => {

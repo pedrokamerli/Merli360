@@ -1,12 +1,16 @@
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
-import { hasGraphicAccess } from "@/lib/graphic";
-import { GestaoGraficaWorkspace } from "@/components/GestaoGraficaWorkspace";
+import { getGraphicRole, hasGraphicAccess } from "@/lib/graphic";
 
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
   const user = await requireUser();
   if (!hasGraphicAccess(user)) redirect("/");
-  return <GestaoGraficaWorkspace />;
+  const role = await getGraphicRole(user);
+  const destination = role === "GRAPHIC_ADMIN" ? "/gestao-grafica/administrative"
+    : role === "GRAPHIC_OPERATIONS" ? "/gestao-grafica/operations"
+      : role === "GRAPHIC_ADVISOR" ? "/gestao-grafica/management"
+        : "/gestao-grafica/commercial";
+  redirect(destination);
 }

@@ -38,6 +38,7 @@ type SidebarUser = {
     kind: string;
   };
   moduleAccess?: string;
+  graphicRole?: "GRAPHIC_SALES" | "GRAPHIC_ADMIN" | "GRAPHIC_OPERATIONS" | "GRAPHIC_OWNER" | "GRAPHIC_ADVISOR";
 };
 
 const consultoriaItems = [
@@ -59,15 +60,28 @@ const consultoriaItems = [
   { href: "/importar", label: "Importar Extrato", icon: Upload },
   { href: "/questionarios", label: "Questionarios", icon: FileSpreadsheet },
   { href: "/configuracoes", label: "Configuracoes", icon: Settings },
-  { href: "/relatorios", label: "Relatorios", icon: BarChart3 },
-  { href: "/gestao-grafica", label: "Gestao da Grafica", icon: Printer }
+  { href: "/relatorios", label: "Relatorios", icon: BarChart3 }
 ];
 
 const crmItems = [
   { href: "/crm", label: "CRM Comercial", icon: Users },
-  { href: "/gestao-grafica", label: "Gestao da Grafica", icon: Printer },
   { href: "/configuracoes", label: "Configuracoes CRM", icon: Settings }
 ];
+
+function graphicItemsFor(role?: SidebarUser["graphicRole"]) {
+  if (!role) return [{ href: "/gestao-grafica", label: "Gestao da Grafica", icon: Printer }];
+  if (role === "GRAPHIC_SALES") return [{ href: "/gestao-grafica/commercial", label: "Grafica Comercial", icon: Printer }];
+  if (role === "GRAPHIC_ADMIN") return [{ href: "/gestao-grafica/administrative", label: "Grafica Administrativo", icon: Banknote }];
+  if (role === "GRAPHIC_OPERATIONS") return [{ href: "/gestao-grafica/operations", label: "Grafica Operacao", icon: Package }];
+  if (role === "GRAPHIC_ADVISOR") return [{ href: "/gestao-grafica/management", label: "Grafica Gestao", icon: BarChart3 }];
+  return [
+    { href: "/gestao-grafica/commercial", label: "Grafica Comercial", icon: Printer },
+    { href: "/gestao-grafica/administrative", label: "Grafica Administrativo", icon: Banknote },
+    { href: "/gestao-grafica/operations", label: "Grafica Operacao", icon: Package },
+    { href: "/gestao-grafica/management", label: "Grafica Gestao", icon: BarChart3 },
+    { href: "/gestao-grafica/settings", label: "Config. Grafica", icon: Settings }
+  ];
+}
 
 const agroItems = [
   { href: "/", label: "Dashboard", icon: Home },
@@ -99,6 +113,7 @@ export function Sidebar({ user }: { user: SidebarUser }) {
   const onlyCrm = user.role !== "superadmin" && user.moduleAccess !== "all" && Boolean(user.moduleAccess?.includes("crm"));
   const items = [
     ...(onlyCrm ? crmItems : [...(isAgro ? agroItems : consultoriaItems), { href: "/crm", label: "CRM Comercial", icon: Users }]),
+    ...graphicItemsFor(user.graphicRole),
     ...(user.role === "superadmin" ? [
       { href: "/usuarios", label: "Usuarios SaaS", icon: Users }
     ] : [])

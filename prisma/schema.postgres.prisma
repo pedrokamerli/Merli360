@@ -47,19 +47,56 @@ model Tenant {
   attachments       Attachment[]
   pushSubscriptions WebPushSubscription[]
   notificationRules NotificationRule[]
+  aiLearningRules   AiLearningRule[]
+  assistantProfiles AssistantProfile[]
+  assistantMessages AssistantMessage[]
+  assistantPlans    AssistantPlan[]
+  crmStages         CrmPipelineStage[]
+  crmTemplates      CrmMessageTemplate[]
+  crmActivities     CrmActivity[]
+  graphicProducts   GraphicProduct[]
+  graphicMaterials  GraphicMaterial[]
+  graphicSuppliers  GraphicSupplier[]
+  graphicPurchases  GraphicPurchase[]
+  graphicInventoryMovements GraphicInventoryMovement[]
+  graphicMaterialNeeds GraphicMaterialNeed[]
+  graphicProcesses  GraphicProcess[]
+  graphicOpportunities GraphicOpportunity[]
+  graphicQuotes     GraphicQuote[]
+  graphicOrders     GraphicOrder[]
+  graphicProductionOrders GraphicProductionOrder[]
+  graphicSettings   GraphicSetting[]
 }
 
 model User {
-  id           String     @id @default(cuid())
-  tenantId     String
-  tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  username     String     @unique
-  passwordHash String
-  name         String
-  role         String     @default("user")
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  auditLogs    AuditLog[]
+  id                 String             @id @default(cuid())
+  tenantId           String
+  tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  username           String             @unique
+  passwordHash       String
+  mustChangePassword Boolean            @default(false)
+  name               String
+  email              String?
+  whatsapp           String?
+  phone              String?
+  document           String?
+  address            String?
+  addressNumber      String?
+  district           String?
+  city               String?
+  state              String?
+  zipCode            String?
+  notes              String?
+  role               String             @default("user")
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  auditLogs          AuditLog[]
+  aiLearningRules    AiLearningRule[]
+  assistantProfiles  AssistantProfile[]
+  crmActivities      CrmActivity[]
+  graphicOpportunities GraphicOpportunity[]
+  graphicQuotes      GraphicQuote[]
+  moduleAccess       String             @default("all")
 }
 
 model AuditLog {
@@ -84,6 +121,23 @@ model Client {
   tenantId            String?
   tenant              Tenant?             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   name                String
+  fantasyName         String?
+  document            String?
+  stateRegistration   String?
+  email               String?
+  phone               String?
+  whatsapp            String?
+  responsibleName     String?
+  responsibleRole     String?
+  segment             String?
+  website             String?
+  instagram           String?
+  address             String?
+  addressNumber       String?
+  district            String?
+  city                String?
+  state               String?
+  zipCode             String?
   type                String
   monthlyValue        Float               @default(0)
   dueDay              Int?
@@ -245,15 +299,867 @@ model Lead {
   name          String
   segment       String?
   city          String?
+  state         String?
+  type          String    @default("Imobiliaria")
+  companyName   String?
   contact       String?
+  normalizedPhone String?
+  email         String?
+  address       String?
   website       String?
-  status        String    @default("Novo lead")
+  socialLink    String?
+  googleMapsUrl String?
+  publicSource  String?
+  sourceCriteria String?
+  verifiedAt    DateTime?
+  ownerName     String?
+  temperature   String    @default("Morno")
+  priority      String    @default("Media")
+  interestService String?
+  hasOpportunity Boolean   @default(false)
+  opportunityName String?
+  opportunityStatus String @default("aberta")
+  expectedCloseDate DateTime?
+  closedAt       DateTime?
+  wonValue       Float     @default(0)
+  lossReason     String?
+  probabilityManual Boolean @default(false)
+  origin        String?
+  lastContactAt DateTime?
+  lastActionByUserId String?
+  lastActionByName String?
+  lastActionAt DateTime?
+  contactLockedUntil DateTime?
+  nextAction    String?
+  attempts      Int       @default(0)
+  lastContactResult String?
+  optOut        Boolean   @default(false)
+  doNotContact  Boolean   @default(false)
+  blockReason   String?
+  archivedAt    DateTime?
+  status        String    @default("Novo")
   proposedValue Float     @default(0)
   closeChance   Float     @default(0)
   nextFollowUp  DateTime?
   notes         String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  activities    CrmActivity[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, city])
+  @@index([tenantId, normalizedPhone])
+  @@index([tenantId, opportunityStatus])
+  @@index([tenantId, nextFollowUp])
+}
+
+model CrmPipelineStage {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name      String
+  color     String   @default("violet")
+  position  Int      @default(0)
+  kind      String   @default("active")
+  defaultProbability Float @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, name])
+  @@index([tenantId, position])
+}
+
+model CrmMessageTemplate {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name      String
+  content   String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, name])
+}
+
+model CrmActivity {
+  id             String   @id @default(cuid())
+  tenantId       String
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  leadId         String
+  lead           Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  userId         String?
+  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  type           String   @default("Follow-up")
+  channel        String   @default("Outro")
+  result         String?
+  note           String?
+  nextAction     String?
+  nextActionDate DateTime?
+  status         String   @default("concluida")
+  createdAt      DateTime @default(now())
+
+  @@index([tenantId, leadId, createdAt])
+}
+
+model GraphicProduct {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name        String
+  category    String   @default("Impressos")
+  unit        String   @default("unidade")
+  description String?
+  status      String   @default("ACTIVE")
+  validationStatus String @default("PENDING_VALIDATION")
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  versions    GraphicProductVersion[]
+  components  GraphicProductComponent[]
+  processes   GraphicProductProcess[]
+  quoteItems  GraphicQuoteItem[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, status])
+}
+
+model GraphicProductVersion {
+  id          String   @id @default(cuid())
+  tenantId    String
+  productId   String
+  product     GraphicProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  version     Int      @default(1)
+  snapshot    String
+  status      String   @default("ACTIVE")
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tenantId, productId, version])
+  @@index([tenantId, productId])
+}
+
+model GraphicMaterial {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name        String
+  code        String?
+  unit        String   @default("m2")
+  currentStock Float   @default(0)
+  minStock     Float   @default(0)
+  currentCostCents Int @default(0)
+  wastePercent Float  @default(0)
+  supplier    String?
+  supplierId  String?
+  supplierRef GraphicSupplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  location    String?
+  status      String   @default("ACTIVE")
+  validationStatus String @default("PENDING_VALIDATION")
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  costHistory GraphicMaterialCostHistory[]
+  components  GraphicProductComponent[]
+  quoteCosts  GraphicQuoteItemCost[]
+  consumptions GraphicMaterialConsumption[]
+  inventoryMovements GraphicInventoryMovement[]
+  purchaseItems GraphicPurchaseItem[]
+  materialNeeds GraphicMaterialNeed[]
+
+  @@unique([tenantId, name])
+  @@unique([tenantId, code])
+  @@index([tenantId, status])
+}
+
+model GraphicSupplier {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name        String
+  document    String?
+  email       String?
+  phone       String?
+  contactName String?
+  status      String   @default("ACTIVE")
+  notes       String?
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  materials   GraphicMaterial[]
+  purchases   GraphicPurchase[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, status])
+}
+
+model GraphicInventoryMovement {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  materialId  String
+  material    GraphicMaterial @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  type        String
+  quantity    Float
+  unitCostCents Int?
+  referenceType String?
+  referenceId String?
+  note        String?
+  occurredAt  DateTime @default(now())
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tenantId, referenceType, referenceId, materialId, type])
+  @@index([tenantId, materialId, occurredAt])
+  @@index([tenantId, type])
+}
+
+model GraphicPurchase {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  number      Int
+  supplierId  String?
+  supplier    GraphicSupplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  status      String   @default("DRAFT")
+  expectedAt  DateTime?
+  orderedAt   DateTime?
+  receivedAt  DateTime?
+  notes       String?
+  totalCents  Int      @default(0)
+  financialTitleId String?
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  items       GraphicPurchaseItem[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status, expectedAt])
+}
+
+model GraphicPurchaseItem {
+  id          String   @id @default(cuid())
+  tenantId    String
+  purchaseId  String
+  purchase    GraphicPurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  materialId  String
+  material    GraphicMaterial @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  quantity    Float
+  receivedQuantity Float @default(0)
+  unitCostCents Int
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, purchaseId])
+  @@index([tenantId, materialId])
+}
+
+model GraphicMaterialNeed {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  materialId  String
+  material    GraphicMaterial @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  productionOrderId String?
+  requiredQuantity Float
+  availableQuantity Float
+  missingQuantity Float
+  status      String   @default("OPEN")
+  resolvedByPurchaseId String?
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tenantId, productionOrderId, materialId])
+  @@index([tenantId, status])
+}
+
+model GraphicMaterialCostHistory {
+  id          String   @id @default(cuid())
+  tenantId    String
+  materialId  String
+  material    GraphicMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  costCents   Int
+  source      String   @default("MANUAL")
+  status      String   @default("PENDING_VALIDATION")
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, materialId, createdAt])
+}
+
+model GraphicProcess {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name        String
+  type        String   @default("INTERNAL")
+  unit        String   @default("hora")
+  costCents   Int      @default(0)
+  setupCostCents Int   @default(0)
+  status      String   @default("ACTIVE")
+  validationStatus String @default("PENDING_VALIDATION")
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  products    GraphicProductProcess[]
+  quoteCosts  GraphicQuoteItemCost[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId, status])
+}
+
+model GraphicProductComponent {
+  id          String   @id @default(cuid())
+  tenantId    String
+  productId   String
+  product     GraphicProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  materialId  String
+  material    GraphicMaterial @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  quantity    Float    @default(1)
+  wastePercent Float   @default(0)
+  status      String   @default("ACTIVE")
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, productId])
+  @@index([tenantId, materialId])
+}
+
+model GraphicProductProcess {
+  id          String   @id @default(cuid())
+  tenantId    String
+  productId   String
+  product     GraphicProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  processId   String
+  process     GraphicProcess @relation(fields: [processId], references: [id], onDelete: Restrict)
+  quantity    Float    @default(1)
+  status      String   @default("ACTIVE")
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, productId])
+  @@index([tenantId, processId])
+}
+
+model GraphicOpportunity {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  clientId    String?
+  leadId      String?
+  ownerId     String?
+  owner       User?    @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  title       String
+  source      String?
+  productInterest String?
+  estimatedValueCents Int @default(0)
+  nextAction  String?
+  nextFollowUp DateTime?
+  lossReason  String?
+  status      String   @default("OPEN")
+  qualityAlert String?
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  activities  GraphicActivity[]
+  tasks       GraphicTask[]
+  quotes      GraphicQuote[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, nextFollowUp])
+  @@index([tenantId, ownerId])
+}
+
+model GraphicPipelineStage {
+  id          String   @id @default(cuid())
+  tenantId    String
+  name        String
+  position    Int      @default(0)
+  kind        String   @default("ACTIVE")
+  active      Boolean  @default(true)
+  createdById String?
+  updatedById String?
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tenantId, name])
+  @@index([tenantId, position])
+}
+
+model GraphicActivity {
+  id          String   @id @default(cuid())
+  tenantId    String
+  opportunityId String?
+  opportunity GraphicOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  userId      String?
+  type        String   @default("INTERACTION")
+  channel     String?
+  note        String?
+  result      String?
+  status      String   @default("DONE")
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, opportunityId, createdAt])
+}
+
+model GraphicTask {
+  id          String   @id @default(cuid())
+  tenantId    String
+  opportunityId String?
+  opportunity GraphicOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  assignedToId String?
+  title       String
+  dueDate     DateTime?
+  status      String   @default("OPEN")
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, status])
+  @@index([tenantId, dueDate])
+}
+
+model GraphicQuote {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  opportunityId String?
+  opportunity GraphicOpportunity? @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  clientId    String?
+  responsibleId String?
+  responsible User?    @relation(fields: [responsibleId], references: [id], onDelete: SetNull)
+  number      Int
+  version     Int      @default(1)
+  shareToken  String?
+  status      String   @default("DRAFT")
+  validUntil  DateTime
+  paymentTerms String?
+  notes       String?
+  subtotalCents Int    @default(0)
+  discountCents Int    @default(0)
+  urgencyCents Int     @default(0)
+  freightCents Int     @default(0)
+  installationCents Int @default(0)
+  totalCostCents Int   @default(0)
+  totalPriceCents Int  @default(0)
+  minimumPriceCents Int @default(0)
+  marginPercent Float  @default(0)
+  markupPercent Float  @default(0)
+  approvalRequired Boolean @default(false)
+  approvalReason String?
+  approvedAt DateTime?
+  approvedById String?
+  viewedAt DateTime?
+  cancelledAt DateTime?
+  cancelReason String?
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  items       GraphicQuoteItem[]
+  versions   GraphicQuoteVersion[]
+  approvals  GraphicApprovalRequest[]
+  orders     GraphicOrder[]
+
+  @@unique([tenantId, number, version])
+  @@index([tenantId, status])
+  @@index([tenantId, clientId])
+  @@index([shareToken])
+}
+
+model GraphicQuoteVersion {
+  id          String   @id @default(cuid())
+  tenantId    String
+  quoteId     String
+  quote       GraphicQuote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  version     Int
+  snapshot    String
+  status      String   @default("ACTIVE")
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tenantId, quoteId, version])
+  @@index([tenantId, quoteId])
+}
+
+model GraphicQuoteItem {
+  id          String   @id @default(cuid())
+  tenantId    String
+  quoteId     String
+  quote       GraphicQuote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  productId   String?
+  product     GraphicProduct? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  description String
+  quantity    Float
+  width       Float?
+  height      Float?
+  area        Float?
+  unit        String   @default("unidade")
+  deadlineDays Int?
+  costCents   Int      @default(0)
+  priceCents  Int      @default(0)
+  marginPercent Float  @default(0)
+  costSnapshot String?
+  status      String   @default("ACTIVE")
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  costs       GraphicQuoteItemCost[]
+
+  @@index([tenantId, quoteId])
+}
+
+model GraphicQuoteItemCost {
+  id          String   @id @default(cuid())
+  tenantId    String
+  quoteItemId String
+  quoteItem   GraphicQuoteItem @relation(fields: [quoteItemId], references: [id], onDelete: Cascade)
+  materialId  String?
+  material    GraphicMaterial? @relation(fields: [materialId], references: [id], onDelete: SetNull)
+  processId   String?
+  process     GraphicProcess? @relation(fields: [processId], references: [id], onDelete: SetNull)
+  type        String
+  description String
+  quantity    Float    @default(1)
+  unitCostCents Int    @default(0)
+  totalCostCents Int   @default(0)
+  status      String   @default("PENDING_VALIDATION")
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, quoteItemId])
+}
+
+model GraphicApprovalRequest {
+  id          String   @id @default(cuid())
+  tenantId    String
+  quoteId     String
+  quote       GraphicQuote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  reason      String
+  requestedById String?
+  decidedById String?
+  decision    String?
+  decidedAt   DateTime?
+  status      String   @default("PENDING")
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, status])
+  @@index([tenantId, quoteId])
+}
+
+model GraphicOrder {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  quoteId     String
+  quote       GraphicQuote @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  clientId    String?
+  number      Int
+  status      String   @default("OPEN")
+  soldValueCents Int   @default(0)
+  billedValueCents Int @default(0)
+  receivedValueCents Int @default(0)
+  commercialSnapshot String
+  productionSnapshot String?
+  cancelReason String?
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  items       GraphicOrderItem[]
+  productionOrders GraphicProductionOrder[]
+  deliveries  GraphicDelivery[]
+  receivables GraphicReceivable[]
+  postSales   GraphicPostSale[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+  @@index([tenantId, clientId])
+}
+
+model GraphicOrderItem {
+  id          String   @id @default(cuid())
+  tenantId    String
+  orderId     String
+  order       GraphicOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Float
+  priceCents  Int
+  costCents   Int
+  snapshot    String
+  status      String   @default("ACTIVE")
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, orderId])
+}
+
+model GraphicProductionOrder {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orderId     String
+  order       GraphicOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status      String   @default("PENDING")
+  priority    String   @default("NORMAL")
+  promisedAt  DateTime?
+  responsibleId String?
+  checklist   String?
+  technicalSnapshot String
+  blockedReason String?
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  steps       GraphicProductionStep[]
+  events      GraphicProductionEvent[]
+  consumptions GraphicMaterialConsumption[]
+  reworks     GraphicReworkRecord[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, promisedAt])
+}
+
+model GraphicProductionStep {
+  id          String   @id @default(cuid())
+  tenantId    String
+  productionOrderId String
+  productionOrder GraphicProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  name        String
+  position    Int      @default(0)
+  status      String   @default("PENDING")
+  estimatedMinutes Int @default(0)
+  actualMinutes Int    @default(0)
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, productionOrderId])
+}
+
+model GraphicProductionEvent {
+  id          String   @id @default(cuid())
+  tenantId    String
+  productionOrderId String
+  productionOrder GraphicProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  userId      String?
+  stepName    String?
+  action      String
+  note        String?
+  minutes     Int?
+  evidenceAttachmentId String?
+  status      String   @default("ACTIVE")
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, productionOrderId, createdAt])
+}
+
+model GraphicMaterialConsumption {
+  id          String   @id @default(cuid())
+  tenantId    String
+  productionOrderId String
+  productionOrder GraphicProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  materialId  String?
+  material    GraphicMaterial? @relation(fields: [materialId], references: [id], onDelete: SetNull)
+  description String
+  quantity    Float
+  wasteQuantity Float @default(0)
+  costCents   Int @default(0)
+  status      String   @default("ACTIVE")
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, productionOrderId])
+}
+
+model GraphicReworkRecord {
+  id          String   @id @default(cuid())
+  tenantId    String
+  productionOrderId String
+  productionOrder GraphicProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  reason      String
+  impact      String
+  correctiveAction String
+  costCents   Int      @default(0)
+  status      String   @default("OPEN")
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, productionOrderId])
+}
+
+model GraphicDelivery {
+  id          String   @id @default(cuid())
+  tenantId    String
+  orderId     String
+  order       GraphicOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  method      String   @default("RETIRADA")
+  expectedAt  DateTime?
+  deliveredAt DateTime?
+  responsibleName String?
+  proofAttachmentId String?
+  acceptanceStatus String?
+  complaint    String?
+  status      String   @default("PENDING")
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, status])
+  @@index([tenantId, expectedAt])
+}
+
+model GraphicPostSale {
+  id          String   @id @default(cuid())
+  tenantId    String
+  orderId     String
+  order       GraphicOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  satisfaction Int?
+  note        String?
+  newOpportunityId String?
+  status      String   @default("OPEN")
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, status])
+}
+
+model GraphicReceivable {
+  id          String   @id @default(cuid())
+  tenantId    String
+  orderId     String
+  order       GraphicOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  financialTitleId String?
+  dueDate     DateTime
+  amountCents Int
+  receivedCents Int @default(0)
+  status      String   @default("OPEN")
+  notes       String?
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  payments    GraphicPayment[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, dueDate])
+}
+
+model GraphicPayment {
+  id          String   @id @default(cuid())
+  tenantId    String
+  receivableId String
+  receivable GraphicReceivable @relation(fields: [receivableId], references: [id], onDelete: Cascade)
+  paidAt      DateTime
+  amountCents Int
+  method      String?
+  notes       String?
+  status      String   @default("ACTIVE")
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, paidAt])
+}
+
+model GraphicAttachment {
+  id          String   @id @default(cuid())
+  tenantId    String
+  attachmentId String
+  linkedModel String
+  linkedId    String
+  purpose     String?
+  status      String   @default("ACTIVE")
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, linkedModel, linkedId])
+}
+
+model GraphicAuditLog {
+  id          String   @id @default(cuid())
+  tenantId    String
+  userId      String?
+  action      String
+  entity      String?
+  entityId    String?
+  metadata    String?
+  status      String   @default("ok")
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId, entity, entityId])
+  @@index([tenantId, createdAt])
+}
+
+model GraphicSetting {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  key         String
+  value       String
+  status      String   @default("ACTIVE")
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tenantId, key])
+  @@index([tenantId, status])
 }
 
 model ServicePlan {
@@ -625,32 +1531,62 @@ model BankImportBatch {
 }
 
 model BankTransaction {
-  id                    String               @id @default(cuid())
-  tenantId              String
-  tenant                Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  batchId               String
-  batch                 BankImportBatch      @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  date                  DateTime
-  description           String
-  amountCents           Int
-  direction             String
-  accountName           String
-  categorySuggestion    String?
-  paymentMethod         String?
-  fingerprint           String
-  status                String               @default("POSTED")
-  cashMovementLegacyId  String?
-  transactionImportHash String?
-  notes                 String?
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
-  reconciliationGroupId String?
-  reconciliationGroup   ReconciliationGroup? @relation(fields: [reconciliationGroupId], references: [id], onDelete: SetNull)
+  id                       String               @id @default(cuid())
+  tenantId                 String
+  tenant                   Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  batchId                  String
+  batch                    BankImportBatch      @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  date                     DateTime
+  description              String
+  amountCents              Int
+  direction                String
+  accountName              String
+  categorySuggestion       String?
+  categorySuggestionSource String?
+  suggestionConfidence     Float?
+  counterpartyName         String?
+  counterpartyDocument     String?
+  paymentMethod            String?
+  fingerprint              String
+  status                   String               @default("POSTED")
+  cashMovementLegacyId     String?
+  transactionImportHash    String?
+  notes                    String?
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
+  reconciliationGroupId    String?
+  reconciliationGroup      ReconciliationGroup? @relation(fields: [reconciliationGroupId], references: [id], onDelete: SetNull)
 
   @@unique([tenantId, fingerprint])
   @@index([tenantId, date])
   @@index([tenantId, status])
   @@index([tenantId, accountName])
+}
+
+model AiLearningRule {
+  id                   String    @id @default(cuid())
+  tenantId             String
+  tenant               Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId               String?
+  user                 User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  pattern              String
+  counterpartyName     String?
+  counterpartyDocument String?
+  direction            String?
+  category             String
+  paymentMethod        String?
+  costCenter           String?
+  source               String    @default("USER_CORRECTION")
+  correctionCount      Int       @default(1)
+  confidence           Float     @default(0.95)
+  lastMatchedAt        DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@unique([tenantId, userId, pattern, direction])
+  @@index([tenantId, userId])
+  @@index([tenantId, pattern])
+  @@index([tenantId, counterpartyDocument])
 }
 
 model ReconciliationGroup {
@@ -735,4 +1671,116 @@ model NotificationRule {
 
   @@unique([tenantId, type, daysBefore, channel])
   @@index([tenantId, enabled])
+}
+
+model AiConfiguration {
+  id               String   @id @default("global")
+  provider         String   @default("gemini")
+  model            String   @default("gemini-flash-latest")
+  apiKey           String?
+  geminiModel      String?
+  geminiApiKey     String?
+  openaiModel      String?
+  openaiApiKey     String?
+  cheapProvider    String   @default("gemini")
+  smartProvider    String   @default("openai")
+  visionProvider   String   @default("openai")
+  systemContext    String?
+  webSearchEnabled Boolean  @default(true)
+  autoExecute      Boolean  @default(false)
+  updatedById      String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model AssistantProfile {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId              String?
+  user                User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assistantName       String   @default("Assistente 360")
+  ownerName           String?
+  businessName        String?
+  goalsText           String?
+  preferences         String?
+  personality         String?
+  memoryText          String?
+  onboardingStep      Int      @default(0)
+  onboardingCompleted Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([userId])
+}
+
+model AssistantMessage {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId    String?
+  role      String
+  content   String
+  metadata  String?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, role])
+}
+
+model AssistantPlan {
+  id              String   @id @default(cuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId          String?
+  conversationId  String?
+  idempotencyKey  String
+  intent          String
+  tool            String
+  riskLevel       String
+  status          String   @default("Draft")
+  originalMessage String
+  operation       String
+  plan            String
+  result          String?
+  error           String?
+  expiresAt       DateTime?
+  confirmedAt     DateTime?
+  executedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, userId, status])
+  @@index([tenantId, createdAt])
+}
+
+model PublicQuestionnaire {
+  id          String                    @id @default(cuid())
+  slug        String                    @unique
+  title       String
+  description String?
+  questions   String
+  active      Boolean                   @default(true)
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
+  submissions PublicQuestionnaireSubmission[]
+
+  @@index([active])
+}
+
+model PublicQuestionnaireSubmission {
+  id              String              @id @default(cuid())
+  questionnaireId String
+  questionnaire   PublicQuestionnaire @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
+  respondentName  String?
+  respondentPhone String?
+  respondentEmail String?
+  answers         String
+  ip              String?
+  userAgent       String?
+  createdAt       DateTime            @default(now())
+
+  @@index([questionnaireId, createdAt])
 }

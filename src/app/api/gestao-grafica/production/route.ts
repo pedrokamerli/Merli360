@@ -4,6 +4,7 @@ import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { assertGraphicPermission, cents } from "@/lib/graphic";
 import { isProductionStepStatus, mergeChecklist, positiveNumber, validateProductionStatusChange, validateRework } from "@/lib/graphic-production";
+import { refreshGraphicMaterialNeeds, registerGraphicProductionConsumption } from "@/lib/graphic-inventory";
 
 export const dynamic = "force-dynamic";
 
@@ -69,11 +70,7 @@ export async function PUT(request: NextRequest) {
         const material = await db.graphicMaterial.findFirst({ where: { id: materialId, tenantId: user.tenantId } });
         if (!material) return NextResponse.json({ error: "Material nao encontrado." }, { status: 404 });
       }
-      const item = await db.$transaction(async (tx: any) => {
-        const consumption = await tx.graphicMaterialConsumption.create({ data: { tenantId: user.tenantId, productionOrderId: id, materialId, description, quantity, wasteQuantity, costCents: cents(body.cost), createdById: user.id, updatedById: user.id } });
-        await tx.graphicProductionEvent.create({ data: { tenantId: user.tenantId, productionOrderId: id, userId: user.id, action: "MATERIAL_CONSUMED", note: `${description} - ${quantity}`, createdById: user.id, updatedById: user.id } });
-        return consumption;
-      });
+      const item = await registerGraphicProductionConsumption({ tenantId: user.tenantId, userId: user.id, productionOrderId: id, materialId, description, quantity, wasteQuantity, costCents: cents(body.cost) });
       await audit({ tenantId: user.tenantId, userId: user.id, action: "graphic_register_material_consumption", entity: "GraphicMaterialConsumption", entityId: item.id, request });
       return NextResponse.json({ item });
     }
@@ -103,8 +100,9 @@ export async function PUT(request: NextRequest) {
       await tx.graphicProductionEvent.create({ data: { tenantId: user.tenantId, productionOrderId: id, userId: user.id, action: `STATUS_${status}`, note: note || null, createdById: user.id, updatedById: user.id } });
       return updated;
     });
+    const materialNeeds = status === "RELEASED" ? await refreshGraphicMaterialNeeds({ tenantId: user.tenantId, userId: user.id, productionOrderId: id }) : null;
     await audit({ tenantId: user.tenantId, userId: user.id, action: "graphic_update_production", entity: "GraphicProductionOrder", entityId: id, request, metadata: { status } });
-    return NextResponse.json({ item });
+    return NextResponse.json({ item, materialNeeds });
   } catch (error: any) {
     const status = error?.message === "UNAUTHORIZED" ? 401 : error?.message === "FORBIDDEN_GRAPHIC_PERMISSION" || error?.message === "FORBIDDEN_MODULE" ? 403 : 500;
     return NextResponse.json({ error: status === 403 ? "Seu perfil nao permite atualizar producao." : "Nao foi possivel atualizar a producao.", detail: process.env.NODE_ENV === "production" ? undefined : String(error?.message || error) }, { status });

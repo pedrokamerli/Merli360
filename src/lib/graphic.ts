@@ -7,7 +7,7 @@ export { calculateGraphicPricing };
 
 export const GRAPHIC_MODULE = "gestao-grafica";
 
-export const graphicRoles = ["OWNER_ADMIN", "SALES_MANAGER", "SALES", "PRODUCTION", "FINANCE", "ADVISOR"] as const;
+export const graphicRoles = ["GRAPHIC_SALES", "GRAPHIC_ADMIN", "GRAPHIC_OPERATIONS", "GRAPHIC_OWNER", "GRAPHIC_ADVISOR"] as const;
 
 export type GraphicRole = typeof graphicRoles[number];
 
@@ -21,15 +21,17 @@ export type GraphicPermission =
   | "production:update"
   | "receivable:update"
   | "post-sale:update"
-  | "report:view";
+  | "report:view"
+  | "inventory:view"
+  | "inventory:manage"
+  | "purchase:manage";
 
 const rolePermissions: Record<GraphicRole, GraphicPermission[]> = {
-  OWNER_ADMIN: ["catalog:manage", "settings:manage", "opportunity:write", "quote:create", "quote:approve", "cost:view", "production:update", "receivable:update", "post-sale:update", "report:view"],
-  SALES_MANAGER: ["opportunity:write", "quote:create", "quote:approve", "production:update", "report:view"],
-  SALES: ["opportunity:write", "quote:create"],
-  PRODUCTION: ["production:update"],
-  FINANCE: ["receivable:update", "report:view"],
-  ADVISOR: ["report:view"]
+  GRAPHIC_OWNER: ["catalog:manage", "settings:manage", "opportunity:write", "quote:create", "quote:approve", "cost:view", "production:update", "receivable:update", "post-sale:update", "report:view", "inventory:view", "inventory:manage", "purchase:manage"],
+  GRAPHIC_ADMIN: ["catalog:manage", "settings:manage", "quote:approve", "cost:view", "receivable:update", "report:view", "inventory:view", "inventory:manage", "purchase:manage"],
+  GRAPHIC_SALES: ["opportunity:write", "quote:create", "post-sale:update"],
+  GRAPHIC_OPERATIONS: ["production:update", "inventory:view"],
+  GRAPHIC_ADVISOR: ["report:view", "inventory:view"]
 };
 
 export const graphicProductionSteps = [
@@ -66,6 +68,15 @@ export function assertGraphicAccess(user: GraphicUser) {
 
 export function parseGraphicRole(value: unknown): GraphicRole | null {
   const role = String(value || "").trim().toUpperCase();
+  const legacy: Record<string, GraphicRole> = {
+    OWNER_ADMIN: "GRAPHIC_OWNER",
+    SALES_MANAGER: "GRAPHIC_OWNER",
+    SALES: "GRAPHIC_SALES",
+    PRODUCTION: "GRAPHIC_OPERATIONS",
+    FINANCE: "GRAPHIC_ADMIN",
+    ADVISOR: "GRAPHIC_ADVISOR"
+  };
+  if (legacy[role]) return legacy[role];
   return graphicRoles.includes(role as GraphicRole) ? role as GraphicRole : null;
 }
 
@@ -74,8 +85,8 @@ export function graphicRoleSettingKey(userId: string) {
 }
 
 export function defaultGraphicRoleForUser(user: Pick<GraphicUser, "role">): GraphicRole {
-  if (user.role === "superadmin" || user.role === "admin") return "OWNER_ADMIN";
-  return "SALES";
+  if (user.role === "superadmin" || user.role === "admin") return "GRAPHIC_OWNER";
+  return "GRAPHIC_SALES";
 }
 
 export function permissionsForGraphicRole(role: GraphicRole) {
@@ -84,6 +95,16 @@ export function permissionsForGraphicRole(role: GraphicRole) {
 
 export function hasGraphicPermission(role: GraphicRole, permission: GraphicPermission) {
   return permissionsForGraphicRole(role).has(permission);
+}
+
+export type GraphicWorkspace = "commercial" | "administrative" | "operations" | "management" | "settings";
+
+export function hasGraphicWorkspaceAccess(role: GraphicRole, workspace: GraphicWorkspace) {
+  if (role === "GRAPHIC_OWNER") return true;
+  if (workspace === "commercial") return role === "GRAPHIC_SALES";
+  if (workspace === "administrative") return role === "GRAPHIC_ADMIN";
+  if (workspace === "operations") return role === "GRAPHIC_OPERATIONS";
+  return role === "GRAPHIC_ADVISOR";
 }
 
 export async function getGraphicRole(user: GraphicUser): Promise<GraphicRole> {

@@ -12,8 +12,10 @@ export async function GET(request: NextRequest) {
     const user = await requireApiUser();
     assertGraphicAccess(user);
     const graphicRole = await getGraphicRole(user);
-    const canViewFinancial = hasGraphicPermission(graphicRole, "cost:view") || graphicRole === "FINANCE";
+    const canViewFinancial = hasGraphicPermission(graphicRole, "cost:view");
     const canManageSettings = hasGraphicPermission(graphicRole, "settings:manage");
+    const canViewProduction = hasGraphicPermission(graphicRole, "production:update") || graphicRole === "GRAPHIC_OWNER";
+    const canViewInventory = hasGraphicPermission(graphicRole, "inventory:view") || canManageSettings;
     await ensureGraphicDefaults(user.tenantId);
     const db = prisma as any;
     const today = new Date();
@@ -99,18 +101,18 @@ export async function GET(request: NextRequest) {
       metrics: dashboard.metrics,
       metricNotes: dashboard.metricNotes,
       groups: dashboard.groups,
-      opportunities: opportunityRows,
-      quotes: quoteRows,
-      orders: orderRows,
-      productionOrders: productionRows,
-      deliveries: deliveryRows,
-      postSales,
-      receivables,
-      products,
+      opportunities: hasGraphicPermission(graphicRole, "opportunity:write") || graphicRole === "GRAPHIC_OWNER" ? opportunityRows : [],
+      quotes: hasGraphicPermission(graphicRole, "quote:create") || canViewFinancial ? quoteRows : [],
+      orders: canViewFinancial || canViewProduction ? orderRows : [],
+      productionOrders: canViewProduction ? productionRows : [],
+      deliveries: canViewProduction ? deliveryRows : [],
+      postSales: hasGraphicPermission(graphicRole, "post-sale:update") || graphicRole === "GRAPHIC_OWNER" ? postSales : [],
+      receivables: canViewFinancial ? receivables : [],
+      products: canViewFinancial ? products : products.map((product: any) => ({ ...product, components: product.components.map((component: any) => ({ ...component, material: { id: component.material.id, name: component.material.name, unit: component.material.unit } })), processes: product.processes.map((process: any) => ({ ...process, process: { id: process.process.id, name: process.process.name, unit: process.process.unit } })) })),
       clients: allClients,
-      materials,
+      materials: canViewFinancial ? materials : canViewInventory ? materials.map((material: any) => ({ id: material.id, name: material.name, code: material.code, unit: material.unit, currentStock: material.currentStock, minStock: material.minStock, location: material.location, status: material.status })) : [],
       processes,
-      settings,
+      settings: canManageSettings ? settings : [],
       stages,
       users: graphicUsers
     });
