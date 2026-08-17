@@ -180,7 +180,7 @@ export function GestaoGraficaWorkspace({ workspace, scope = "all" }: { workspace
     { key: "delivery", label: "Entregas", count: String(deliveryRows.length), title: "Entregas", description: "Agende, comprove, conclua e registre aceite ou reclamacao do cliente.", action: "Controlar entrega" },
     { key: "finance", label: "Recebimentos", count: String(receivableRows.filter((item: AnyRow) => item.status !== "PAID").length), title: "Recebimentos", description: "Veja vendido, faturado, recebido e registre baixas das parcelas abertas.", action: "Baixar parcela" },
     { key: "postSale", label: "Pos-venda", count: String(postSaleRows.filter((item: AnyRow) => item.status === "OPEN").length), title: "Pos-venda", description: "Feche o atendimento depois da entrega e gere nova venda ou tarefa quando fizer sentido.", action: "Registrar contato" },
-    { key: "base", label: "Base", count: String(products.length + materials.length + processes.length), title: "Base de custos", description: "Importe planilhas e mantenha produtos, materiais, processos, parametros, funil e papeis.", action: "Configurar base" }
+    { key: "base", label: "Configuracoes", count: String(products.length + materials.length + processes.length), title: "Configuracoes da grafica", description: "Mantenha catalogo, precificacao, etapas e acessos da equipe em um so lugar.", action: "Ajustar operacao" }
   ];
   const tabs = workspace === "commercial" ? allTabs.filter((tab) => ["commercial", "postSale"].includes(tab.key))
     : workspace === "operations" ? allTabs.filter((tab) => ["production", "delivery"].includes(tab.key))
@@ -693,7 +693,7 @@ export function GestaoGraficaWorkspace({ workspace, scope = "all" }: { workspace
       {activeTab === "base" ? <section className="surface-panel p-4">
         <div className="mb-4 flex items-center gap-2">
           <Settings size={18} className="text-emerald-600" />
-          <h2 className="text-lg font-black text-slate-950">Produtos, custos e parametros</h2>
+          <h2 className="text-lg font-black text-slate-950">Configuracoes da grafica</h2>
         </div>
         <div className="mb-4 rounded-lg border border-slate-200 bg-white p-3">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -731,7 +731,7 @@ export function GestaoGraficaWorkspace({ workspace, scope = "all" }: { workspace
             </div>
           ) : null}
         </div>
-        <div className="grid gap-4 xl:grid-cols-4">
+        <div className="grid gap-4 xl:grid-cols-3">
           <CatalogBox title="Produto" fields={[
             { key: "name", placeholder: "Produto" },
             { key: "category", placeholder: "Categoria", value: "Comunicacao visual" },
@@ -753,59 +753,7 @@ export function GestaoGraficaWorkspace({ workspace, scope = "all" }: { workspace
             { key: "unit", placeholder: "Unidade", value: "hora" },
             { key: "cost", placeholder: "Custo R$" }
           ]} onSave={(payload) => saveCatalog("process", payload)} />
-          <div className="rounded-lg border border-slate-200 bg-white p-3">
-            <h3 className="font-black text-slate-950">Parametros</h3>
-            <div className="mt-3 grid gap-2">
-              {[
-                ["minMarginPercent", "Margem minima %"],
-                ["maxDiscountPercent", "Desconto maximo %"],
-                ["fixedCostRatePercent", "Custo fixo %"],
-                ["taxRatePercent", "Impostos %"],
-                ["commissionPercent", "Comissao %"],
-                ["postSaleDays", "Pos-venda apos entrega (dias)"]
-              ].map(([key, label]) => (
-                <label key={key} className="grid grid-cols-[1fr_84px] items-center gap-2 text-xs font-black text-slate-500">
-                  {label}
-                  <input className={inputClass} defaultValue={settingMap[key] || ""} onBlur={(event) => event.target.value.trim() && saveCatalog("setting", { key, value: event.target.value })} />
-                </label>
-              ))}
-            </div>
-          </div>
-          {data?.canManageSettings ? (
-            <div className="rounded-lg border border-slate-200 bg-white p-3">
-              <h3 className="font-black text-slate-950">Arquivos e LGPD</h3>
-              <div className="mt-3 grid gap-2">
-                <label className="grid grid-cols-[1fr_90px] items-center gap-2 text-xs font-black text-slate-500">
-                  Retencao (dias)
-                  <input className={inputClass} defaultValue={settingMap.fileRetentionDays || "1825"} onBlur={(event) => saveCatalog("setting", { key: "fileRetentionDays", value: event.target.value || "1825" })} />
-                </label>
-                <label className="grid gap-1 text-xs font-black text-slate-500">
-                  Classificacao
-                  <select className={inputClass} defaultValue={settingMap.fileLgpdClassification || "CONFIDENTIAL"} onChange={(event) => saveCatalog("setting", { key: "fileLgpdClassification", value: event.target.value })}>
-                    <option value="INTERNAL">Interno</option>
-                    <option value="CONFIDENTIAL">Confidencial</option>
-                    <option value="SENSITIVE">Sensivel</option>
-                  </select>
-                </label>
-                <label className="grid gap-1 text-xs font-black text-slate-500">
-                  Remocao
-                  <select className={inputClass} defaultValue={settingMap.fileRemovalPolicy || "SOFT_DELETE_ONLY"} onChange={(event) => saveCatalog("setting", { key: "fileRemovalPolicy", value: event.target.value })}>
-                    <option value="SOFT_DELETE_ONLY">Remocao logica</option>
-                    <option value="ADMIN_REVIEW">Revisao do admin</option>
-                    <option value="LEGAL_HOLD">Retencao legal</option>
-                  </select>
-                </label>
-              </div>
-            </div>
-          ) : null}
-          {data?.canManageSettings ? (
-            <div className="rounded-lg border border-slate-200 bg-white p-3">
-              <h3 className="font-black text-slate-950">Motivos operacionais</h3>
-              <div className="mt-3 grid gap-2">
-                {[['lossReasons', 'Motivos de perda'], ['reworkReasons', 'Motivos de retrabalho'], ['productionIssueCategories', 'Categorias de problema']].map(([key, label]) => <label key={key} className="grid gap-1 text-xs font-black text-slate-500"><span>{label}</span><textarea className={inputClass} defaultValue={settingMap[key] || ''} onBlur={(event) => saveCatalog('setting', { key, value: event.target.value })} rows={3} /></label>)}
-              </div>
-            </div>
-          ) : null}
+          <GraphicSettingsForm settings={settingMap} canManageSettings={Boolean(data?.canManageSettings)} onSave={(payload) => saveCatalog("setting", payload)} />
           {data?.canManageSettings ? (
             <div className="rounded-lg border border-slate-200 bg-white p-3">
               <h3 className="font-black text-slate-950">Papeis da equipe</h3>
@@ -833,7 +781,7 @@ export function GestaoGraficaWorkspace({ workspace, scope = "all" }: { workspace
             ]} onSave={(payload) => saveCatalog("stage", payload)} />
           ) : null}
         </div>
-        <div className="mt-4 grid gap-3 xl:grid-cols-3">
+          <div className="mt-4 grid gap-3 xl:grid-cols-3">
           <CatalogList title="Produtos" type="product" rows={products} value={(item) => `${item.category || item.unit}${item.components?.[0]?.material?.name ? ` | ${item.components[0].material.name}` : ""}`} onSave={saveCatalog} />
           <CatalogList title="Materiais" type="material" rows={materials} value={(item) => `${brl(item.currentCostCents)} | perda ${Number(item.wastePercent || 0).toFixed(1)}%`} onSave={saveCatalog} />
           <CatalogList title="Processos" type="process" rows={processes} value={(item) => `${brl(item.costCents)} | ${item.type}`} onSave={saveCatalog} />
@@ -847,6 +795,7 @@ export function GestaoGraficaWorkspace({ workspace, scope = "all" }: { workspace
             <h2 className="text-lg font-black text-slate-950">Cadastro rapido</h2>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
+            <p className="sm:col-span-2 text-xs font-black uppercase text-slate-500">Cliente</p>
             <select className={`${inputClass} sm:col-span-2`} value={opportunityForm.clientId} onChange={(event) => applyClientToOpportunity(event.target.value)}>
               <option value="">Cliente novo ou selecione cliente do CRM</option>
               {clients.map((item: AnyRow) => <option key={item.id} value={item.id}>{item.name}{item.city ? ` - ${item.city}` : ""}</option>)}
@@ -855,6 +804,7 @@ export function GestaoGraficaWorkspace({ workspace, scope = "all" }: { workspace
             <input className={inputClass} placeholder="Telefone/WhatsApp" value={opportunityForm.phone} onChange={(event) => setOpportunityForm({ ...opportunityForm, phone: event.target.value })} />
             <input className={inputClass} placeholder="Email" value={opportunityForm.email} onChange={(event) => setOpportunityForm({ ...opportunityForm, email: event.target.value })} />
             <input className={inputClass} placeholder="Cidade" value={opportunityForm.city} onChange={(event) => setOpportunityForm({ ...opportunityForm, city: event.target.value })} />
+            <p className="sm:col-span-2 mt-2 text-xs font-black uppercase text-slate-500">Atendimento e retorno</p>
             <input className={inputClass} placeholder="Oportunidade" value={opportunityForm.title} onChange={(event) => setOpportunityForm({ ...opportunityForm, title: event.target.value })} />
             <select className={inputClass} value={opportunityForm.status} onChange={(event) => setOpportunityForm({ ...opportunityForm, status: event.target.value })}>
               {activeStages.map((stage: AnyRow) => <option key={stage.name} value={stage.name}>{stage.name}</option>)}
@@ -877,6 +827,7 @@ export function GestaoGraficaWorkspace({ workspace, scope = "all" }: { workspace
             <h2 className="text-lg font-black text-slate-950">Orcamento com custo</h2>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
+            <p className="sm:col-span-3 text-xs font-black uppercase text-slate-500">Cliente e item</p>
             <select className={`${inputClass} sm:col-span-3`} value={quoteForm.clientId} onChange={(event) => setQuoteForm({ ...quoteForm, clientId: event.target.value })}>
               <option value="">Cliente do CRM para orcamento direto</option>
               {clients.map((item: AnyRow) => <option key={item.id} value={item.id}>{item.name}{item.phone ? ` - ${item.phone}` : ""}</option>)}
@@ -896,6 +847,7 @@ export function GestaoGraficaWorkspace({ workspace, scope = "all" }: { workspace
               <option value="">Produto cadastrado da planilha</option>
               {products.map((item: AnyRow) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
+            <p className="sm:col-span-3 mt-2 text-xs font-black uppercase text-slate-500">Medidas e custo</p>
             <input className={inputClass} placeholder="Qtd" value={quoteForm.quantity} onChange={(event) => setQuoteForm({ ...quoteForm, quantity: event.target.value })} />
             <input className={inputClass} placeholder="Largura" value={quoteForm.width} onChange={(event) => setQuoteForm({ ...quoteForm, width: event.target.value })} />
             <input className={inputClass} placeholder="Altura" value={quoteForm.height} onChange={(event) => setQuoteForm({ ...quoteForm, height: event.target.value })} />
@@ -905,6 +857,7 @@ export function GestaoGraficaWorkspace({ workspace, scope = "all" }: { workspace
             <input className={inputClass} placeholder="Mao de obra R$" value={quoteForm.laborCost} onChange={(event) => setQuoteForm({ ...quoteForm, laborCost: event.target.value })} />
             <input className={inputClass} placeholder="Frete R$" value={quoteForm.freight} onChange={(event) => setQuoteForm({ ...quoteForm, freight: event.target.value })} />
             <input className={inputClass} placeholder="Instalacao R$" value={quoteForm.installation} onChange={(event) => setQuoteForm({ ...quoteForm, installation: event.target.value })} />
+            <p className="sm:col-span-3 mt-2 text-xs font-black uppercase text-slate-500">Preco e condicoes</p>
             <input className={inputClass} placeholder="Preco negociado R$" value={quoteForm.negotiatedPrice} onChange={(event) => setQuoteForm({ ...quoteForm, negotiatedPrice: event.target.value })} />
             <input className={inputClass} placeholder="Desconto R$" value={quoteForm.discount} onChange={(event) => setQuoteForm({ ...quoteForm, discount: event.target.value })} />
             <input className={inputClass} placeholder="Urgencia R$" value={quoteForm.urgency} onChange={(event) => setQuoteForm({ ...quoteForm, urgency: event.target.value })} />
@@ -1174,6 +1127,54 @@ export function GestaoGraficaWorkspace({ workspace, scope = "all" }: { workspace
   );
 }
 
+function GraphicSettingsForm({ settings, canManageSettings, onSave }: { settings: AnyRow; canManageSettings: boolean; onSave: (payload: AnyRow) => Promise<boolean> }) {
+  const fields = [
+    ["minMarginPercent", "Margem minima (%)", "0"],
+    ["maxDiscountPercent", "Desconto maximo (%)", "0"],
+    ["fixedCostRatePercent", "Custo fixo (%)", "0"],
+    ["taxRatePercent", "Impostos (%)", "0"],
+    ["commissionPercent", "Comissao (%)", "0"],
+    ["postSaleDays", "Pos-venda apos entrega (dias)", "7"]
+  ];
+  const [form, setForm] = useState<AnyRow>(() => ({
+    ...Object.fromEntries(fields.map(([key, , fallback]) => [key, settings[key] || fallback])),
+    fileRetentionDays: settings.fileRetentionDays || "1825",
+    fileLgpdClassification: settings.fileLgpdClassification || "CONFIDENTIAL",
+    fileRemovalPolicy: settings.fileRemovalPolicy || "SOFT_DELETE_ONLY",
+    lossReasons: settings.lossReasons || "Preco, Prazo, Concorrencia, Sem retorno, Outro",
+    reworkReasons: settings.reworkReasons || "Erro de arte, Material, Acabamento, Medida, Outro",
+    productionIssueCategories: settings.productionIssueCategories || "Arte, Material, Equipamento, Prazo, Outro"
+  }));
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const entries = Object.entries(form).filter(([, value]) => String(value).trim());
+    const results = await Promise.all(entries.map(([key, value]) => onSave({ key, value })));
+    if (results.every(Boolean)) alert("Configuracoes salvas.");
+  }
+
+  return (
+    <form className="rounded-lg border border-slate-200 bg-white p-4 xl:col-span-3" onSubmit={submit}>
+      <div className="mb-4"><h3 className="font-black text-slate-950">Regras da operacao</h3><p className="mt-1 text-xs font-semibold text-slate-500">Estas regras alimentam a precificacao, o alerta comercial e as tarefas automaticas.</p></div>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {fields.map(([key, label]) => <label key={key} className="grid gap-1 text-xs font-black text-slate-600"><span>{label}</span><input className={inputClass} inputMode="decimal" value={form[key]} onChange={(event) => setForm({ ...form, [key]: event.target.value })} /></label>)}
+      </div>
+      {canManageSettings ? <>
+        <div className="my-5 border-t border-slate-100" />
+        <div className="grid gap-3 md:grid-cols-3">
+          <label className="grid gap-1 text-xs font-black text-slate-600"><span>Retencao de arquivos (dias)</span><input className={inputClass} inputMode="numeric" value={form.fileRetentionDays} onChange={(event) => setForm({ ...form, fileRetentionDays: event.target.value })} /></label>
+          <label className="grid gap-1 text-xs font-black text-slate-600"><span>Classificacao dos arquivos</span><select className={inputClass} value={form.fileLgpdClassification} onChange={(event) => setForm({ ...form, fileLgpdClassification: event.target.value })}><option value="INTERNAL">Interno</option><option value="CONFIDENTIAL">Confidencial</option><option value="SENSITIVE">Sensivel</option></select></label>
+          <label className="grid gap-1 text-xs font-black text-slate-600"><span>Remocao de arquivos</span><select className={inputClass} value={form.fileRemovalPolicy} onChange={(event) => setForm({ ...form, fileRemovalPolicy: event.target.value })}><option value="SOFT_DELETE_ONLY">Remocao logica</option><option value="ADMIN_REVIEW">Revisao administrativa</option><option value="LEGAL_HOLD">Retencao legal</option></select></label>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          {[["lossReasons", "Motivos de perda"], ["reworkReasons", "Motivos de retrabalho"], ["productionIssueCategories", "Categorias de problema"]].map(([key, label]) => <label key={key} className="grid gap-1 text-xs font-black text-slate-600"><span>{label}</span><textarea className={inputClass} rows={3} value={form[key]} onChange={(event) => setForm({ ...form, [key]: event.target.value })} /></label>)}
+        </div>
+      </> : null}
+      <div className="mt-4 flex justify-end"><button className="primary-action px-4 py-2" type="submit">Salvar configuracoes</button></div>
+    </form>
+  );
+}
+
 function CatalogBox({ title, fields, onSave }: { title: string; fields: { key: string; placeholder: string; value?: string }[]; onSave: (payload: AnyRow) => Promise<boolean> }) {
   const [form, setForm] = useState<AnyRow>(() => Object.fromEntries(fields.map((field) => [field.key, field.value || ""])));
 
@@ -1187,15 +1188,7 @@ function CatalogBox({ title, fields, onSave }: { title: string; fields: { key: s
     <form className="rounded-lg border border-slate-200 bg-white p-3" onSubmit={submit}>
       <h3 className="font-black text-slate-950">{title}</h3>
       <div className="mt-3 grid gap-2">
-        {fields.map((field) => (
-          <input
-            key={field.key}
-            className={inputClass}
-            placeholder={field.placeholder}
-            value={form[field.key] || ""}
-            onChange={(event) => setForm({ ...form, [field.key]: event.target.value })}
-          />
-        ))}
+        {fields.map((field) => <label key={field.key} className="grid gap-1 text-xs font-black text-slate-600"><span>{field.placeholder}</span><input className={inputClass} required={field.key === "name"} value={form[field.key] || ""} onChange={(event) => setForm({ ...form, [field.key]: event.target.value })} /></label>)}
       </div>
       <button className="primary-action mt-3 inline-flex w-full items-center justify-center gap-2 py-2 text-xs" type="submit">
         <Plus size={14} /> Salvar
