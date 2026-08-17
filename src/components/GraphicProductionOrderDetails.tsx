@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { Check, Download, ExternalLink, FileArchive, ImageIcon, Loader2, MapPin, MessageCircle, Paperclip, Upload, X } from "lucide-react";
+import { Check, ChevronUp, Download, ExternalLink, FileArchive, ImageIcon, Loader2, MapPin, MessageCircle, Paperclip, Upload } from "lucide-react";
 
 type Row = Record<string, any>;
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
@@ -100,11 +100,10 @@ export function GraphicProductionOrderDetails({ production, order, onClose, onCo
     window.open(`https://wa.me/55${phone.replace(/^55/, "")}?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
   }
 
-  return <div className="fixed inset-0 z-[70] bg-slate-950/55 p-0 sm:p-4" role="dialog" aria-modal="true" aria-label={`Pedido ${order.number}`}>
-    <article className="mx-auto flex h-full max-w-5xl flex-col overflow-hidden bg-white shadow-2xl sm:h-[calc(100vh-2rem)] sm:rounded-lg">
-      <header className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-6"><div><p className="text-xs font-black uppercase text-emerald-700">Ficha completa de producao</p><h2 className="mt-1 text-2xl font-black text-slate-950">Pedido #{order.number}</h2><p className="mt-1 text-sm font-semibold text-slate-500">Orcamento #{quote.number || "-"} | {client.name || "Cliente sem nome"}</p></div><button className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-slate-200 text-slate-600" onClick={onClose} title="Fechar" type="button"><X size={18} /></button></header>
+  return <section className="border-t border-slate-200 bg-white" role="region" aria-label={`Pedido ${order.number} aberto`}>
+      <header className="flex items-start justify-between gap-4 bg-slate-50 px-4 py-4 sm:px-6"><div><p className="text-xs font-black uppercase text-emerald-700">Ficha completa de producao</p><h2 className="mt-1 text-2xl font-black text-slate-950">Pedido #{order.number}</h2><p className="mt-1 text-sm font-semibold text-slate-500">Orcamento #{quote.number || "-"} | {client.name || "Cliente sem nome"}</p></div><button className="secondary-action inline-flex shrink-0 items-center gap-2 px-3 py-2" onClick={onClose} type="button"><ChevronUp size={17} />Recolher</button></header>
 
-      <div className="flex-1 space-y-7 overflow-y-auto px-4 py-5 sm:px-6">
+      <div className="space-y-7 px-4 py-5 sm:px-6">
         {message ? <p className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">{message}</p> : null}
 
         <section><h3 className="text-base font-black text-slate-950">Cliente e entrega</h3><div className="mt-3 grid gap-3 sm:grid-cols-3"><div className="rounded-lg bg-slate-50 p-3"><small className="font-black uppercase text-slate-500">Cliente</small><p className="mt-1 font-bold text-slate-900">{client.name || "Nao informado"}</p></div><div className="rounded-lg bg-slate-50 p-3"><small className="font-black uppercase text-slate-500">Contato</small><p className="mt-1 font-bold text-slate-900">{client.whatsapp || client.phone || client.email || "Nao informado"}</p></div><div className="rounded-lg bg-slate-50 p-3"><small className="font-black uppercase text-slate-500">Valor do pedido</small><p className="mt-1 font-bold text-slate-900">{brl(quote.totalPriceCents || order.soldValueCents)}</p></div></div>{orderAddress(order) ? <p className="mt-3 flex gap-2 rounded-lg border border-slate-200 p-3 text-sm font-semibold text-slate-700"><MapPin className="shrink-0 text-emerald-600" size={18} />{orderAddress(order)}</p> : null}</section>
@@ -117,6 +116,5 @@ export function GraphicProductionOrderDetails({ production, order, onClose, onCo
       </div>
 
       <footer className="flex flex-col-reverse gap-2 border-t border-slate-200 px-4 py-4 sm:flex-row sm:justify-end sm:px-6"><button className="secondary-action px-4 py-2" onClick={onClose} type="button">Fechar</button><button className="primary-action px-4 py-2" onClick={onContinue} type="button">Pedido conferido, continuar na producao</button></footer>
-    </article>
-  </div>;
+  </section>;
 }
