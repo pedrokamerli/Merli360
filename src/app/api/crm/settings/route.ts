@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireApiModule } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { audit } from "@/lib/audit";
-import { CRM_MODULE, ensureCrmDefaults } from "@/lib/crm";
+import { canManageCrmSettings, CRM_MODULE, ensureCrmDefaults } from "@/lib/crm";
 
 export async function GET() {
   const user = await requireApiModule(CRM_MODULE);
@@ -11,12 +11,12 @@ export async function GET() {
     prisma.crmPipelineStage.findMany({ where: { tenantId: user.tenantId }, orderBy: { position: "asc" } }),
     prisma.crmMessageTemplate.findMany({ where: { tenantId: user.tenantId }, orderBy: [{ isDefault: "desc" }, { name: "asc" }] })
   ]);
-  return NextResponse.json({ stages, templates, canManage: user.role !== "user" });
+  return NextResponse.json({ stages, templates, canManage: canManageCrmSettings(user) });
 }
 
 export async function POST(request: NextRequest) {
   const user = await requireApiModule(CRM_MODULE);
-  if (user.role === "user") return NextResponse.json({ error: "Somente administradores podem alterar a configuracao do CRM." }, { status: 403 });
+  if (!canManageCrmSettings(user)) return NextResponse.json({ error: "Seu perfil nao permite alterar a configuracao do CRM." }, { status: 403 });
   const body = await request.json();
   const kind = String(body.kind || "");
   const data = body.data || {};
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   const user = await requireApiModule(CRM_MODULE);
-  if (user.role === "user") return NextResponse.json({ error: "Somente administradores podem alterar a configuracao do CRM." }, { status: 403 });
+  if (!canManageCrmSettings(user)) return NextResponse.json({ error: "Seu perfil nao permite alterar a configuracao do CRM." }, { status: 403 });
   const body = await request.json();
   const kind = String(body.kind || "");
   const id = String(body.id || "");
@@ -57,7 +57,7 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   const user = await requireApiModule(CRM_MODULE);
-  if (user.role === "user") return NextResponse.json({ error: "Somente administradores podem alterar a configuracao do CRM." }, { status: 403 });
+  if (!canManageCrmSettings(user)) return NextResponse.json({ error: "Seu perfil nao permite alterar a configuracao do CRM." }, { status: 403 });
   const id = request.nextUrl.searchParams.get("id") || "";
   const kind = request.nextUrl.searchParams.get("kind") || "";
   if (kind === "stage") await prisma.crmPipelineStage.deleteMany({ where: { id, tenantId: user.tenantId } });

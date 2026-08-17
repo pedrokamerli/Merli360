@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { hasGrantedModule, parseModuleAccess } from "@/lib/module-access";
 
 export const CRM_MODULE = "crm";
+export const CRM_SETTINGS_MODULE = "crm-config";
 
 export const defaultCrmStages = [
   "Novo", "Pesquisando", "Pronto para contato", "Contatado", "Respondeu", "Qualificado",
@@ -16,6 +17,10 @@ export function parseModules(value?: string | null) {
 export function hasModuleAccess(user: { role: string; moduleAccess?: string | null }, module: string) {
   if (user.role === "superadmin") return true;
   return hasGrantedModule(user.moduleAccess, module);
+}
+
+export function canManageCrmSettings(user: { role: string; moduleAccess?: string | null }) {
+  return user.role !== "user" || hasGrantedModule(user.moduleAccess, CRM_SETTINGS_MODULE);
 }
 
 export async function ensureCrmDefaults(tenantId: string) {
