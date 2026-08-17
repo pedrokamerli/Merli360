@@ -55,6 +55,14 @@ export function validateProductionCompletion(steps: Array<{ name: string; status
   return pending.length ? `Conclua as etapas pendentes antes de finalizar: ${pending.map((step) => step.name).join(", ")}.` : null;
 }
 
+export function validateProductionStepChange(input: { productionStatus: string; stepStatus: string; stepStartedAt?: Date | string | null; hasAnotherActiveStep: boolean }) {
+  if (input.stepStatus === "IN_PROGRESS" && !["RELEASED", "IN_PROGRESS"].includes(input.productionStatus)) return "Libere a ordem depois de conferir o checklist antes de iniciar uma etapa.";
+  if (input.stepStatus === "IN_PROGRESS" && input.hasAnotherActiveStep) return "Conclua a etapa em andamento antes de iniciar outra.";
+  if (input.stepStatus === "COMPLETED" && input.productionStatus !== "IN_PROGRESS") return "Inicie uma etapa da ordem antes de conclui-la.";
+  if (input.stepStatus === "COMPLETED" && !input.stepStartedAt) return "Inicie a etapa antes de conclui-la.";
+  return null;
+}
+
 export function validateRework(reason: string, impact: string, correctiveAction: string) {
   if (!reason.trim()) return "Retrabalho exige motivo.";
   if (!impact.trim()) return "Retrabalho exige impacto.";

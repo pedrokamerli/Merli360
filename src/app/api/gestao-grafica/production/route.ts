@@ -3,7 +3,7 @@ import { requireApiUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { assertGraphicPermission, cents } from "@/lib/graphic";
-import { isProductionStepStatus, mergeChecklist, positiveNumber, validateProductionCompletion, validateProductionStatusChange, validateRework } from "@/lib/graphic-production";
+import { isProductionStepStatus, mergeChecklist, positiveNumber, validateProductionCompletion, validateProductionStatusChange, validateProductionStepChange, validateRework } from "@/lib/graphic-production";
 import { refreshGraphicMaterialNeeds, registerGraphicProductionConsumption } from "@/lib/graphic-inventory";
 
 export const dynamic = "force-dynamic";
@@ -42,10 +42,20 @@ export async function PUT(request: NextRequest) {
       if (!step) return NextResponse.json({ error: "Etapa nao encontrada." }, { status: 404 });
       const previous = existing.steps.filter((item: any) => item.position < step.position).sort((a: any, b: any) => b.position - a.position)[0];
       if (stepStatus === "IN_PROGRESS" && previous && previous.status !== "COMPLETED" && previous.status !== "SKIPPED") return NextResponse.json({ error: `Conclua a etapa ${previous.name} antes de iniciar ${step.name}.` }, { status: 400 });
-      if (stepStatus === "COMPLETED" && !step.startedAt) return NextResponse.json({ error: "Inicie a etapa antes de conclui-la." }, { status: 400 });
+      const stepError = validateProductionStepChange({
+        productionStatus: existing.status,
+        stepStatus,
+        stepStartedAt: step.startedAt,
+        hasAnotherActiveStep: existing.steps.some((item: any) => item.id !== step.id && item.status === "IN_PROGRESS")
+      });
+      if (stepError) return NextResponse.json({ error: stepError }, { status: 400 });
       const elapsedMinutes = step.startedAt ? Math.max(1, Math.ceil((Date.now() - new Date(step.startedAt).getTime()) / 60000)) : 0;
       const completedMinutes = Math.max(step.actualMinutes || 0, minutes || elapsedMinutes);
       const item = await db.$transaction(async (tx: any) => {
+        if (stepStatus === "IN_PROGRESS" && existing.status === "RELEASED") {
+          await tx.graphicProductionOrder.update({ where: { id }, data: { status: "IN_PROGRESS", updatedById: user.id } });
+          await tx.graphicProductionEvent.create({ data: { tenantId: user.tenantId, productionOrderId: id, userId: user.id, action: "STATUS_IN_PROGRESS", note: `Etapa iniciada: ${step.name}`, createdById: user.id, updatedById: user.id } });
+        }
         const updated = await tx.graphicProductionStep.update({
           where: { id: stepId },
           data: {
@@ -107,6 +117,7 @@ export async function PUT(request: NextRequest) {
     }
 
     if (!status) return NextResponse.json({ error: "Informe o novo status." }, { status: 400 });
+    if (status === "IN_PROGRESS") return NextResponse.json({ error: "Inicie a proxima etapa para comecar o cronometro da producao." }, { status: 400 });
     if (["BLOCKED", "CANCELLED"].includes(status) && !note) return NextResponse.json({ error: "Informe o motivo." }, { status: 400 });
     const checklist = mergeChecklist(existing.checklist, {});
     const statusError = validateProductionStatusChange(existing.status, status, checklist);

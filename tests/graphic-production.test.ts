@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { canReleaseProduction, mergeChecklist, missingChecklistItems, validateProductionCompletion, validateProductionStatusChange, validateRework } from "../src/lib/graphic-production";
+import { canReleaseProduction, mergeChecklist, missingChecklistItems, validateProductionCompletion, validateProductionStatusChange, validateProductionStepChange, validateRework } from "../src/lib/graphic-production";
 
 test("bloqueia liberacao de producao com checklist incompleto", () => {
   const checklist = mergeChecklist(null, { arte: true, medidas: true, material: true });
@@ -28,6 +28,13 @@ test("protege status finais da producao", () => {
 test("nao conclui producao com etapa pendente", () => {
   assert.match(validateProductionCompletion([{ name: "Arte", status: "COMPLETED" }, { name: "Impressao", status: "PENDING" }]) || "", /Impressao/);
   assert.equal(validateProductionCompletion([{ name: "Arte", status: "COMPLETED" }, { name: "Impressao", status: "SKIPPED" }]), null);
+});
+
+test("protege a sequencia de inicio das etapas", () => {
+  assert.match(validateProductionStepChange({ productionStatus: "PENDING", stepStatus: "IN_PROGRESS", stepStartedAt: null, hasAnotherActiveStep: false }) || "", /Libere a ordem/);
+  assert.match(validateProductionStepChange({ productionStatus: "IN_PROGRESS", stepStatus: "IN_PROGRESS", stepStartedAt: null, hasAnotherActiveStep: true }) || "", /andamento/);
+  assert.match(validateProductionStepChange({ productionStatus: "RELEASED", stepStatus: "COMPLETED", stepStartedAt: null, hasAnotherActiveStep: false }) || "", /Inicie uma etapa/);
+  assert.equal(validateProductionStepChange({ productionStatus: "IN_PROGRESS", stepStatus: "COMPLETED", stepStartedAt: new Date(), hasAnotherActiveStep: false }), null);
 });
 
 test("retrabalho exige motivo impacto e acao corretiva", () => {

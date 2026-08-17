@@ -1016,7 +1016,7 @@ export function GestaoGraficaWorkspace({ workspace, scope = "all" }: { workspace
         <div className="grid gap-3 xl:grid-cols-6">
           {["Entrada", "Criacao", "Producao", "Finalizacao", "Expedicao", "Concluido"].map((lane) => {
             const items = productionRows.filter((item: AnyRow) => operationLane(item, deliveryRows) === lane);
-            return <div key={lane} className="min-h-48 rounded-lg border border-slate-200 bg-slate-50 p-3"><div className="mb-3 flex items-center justify-between"><h3 className="text-xs font-black text-slate-700">{lane}</h3><span className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-slate-500">{items.length}</span></div><div className="space-y-2">{items.map((item: AnyRow) => { const delivery = deliveryRows.find((row: AnyRow) => row.orderId === item.orderId); return <article key={item.id} className="rounded-lg border border-slate-200 bg-white p-2"><p className="text-xs font-black text-slate-900">Pedido #{item.order?.number || "-"}</p><p className="mt-1 text-[10px] font-semibold text-slate-500">{item.order?.quote?.productInterest || "Produto"} | prazo {day(item.promisedAt)}</p>{lane === "Entrada" ? <button className="secondary-action mt-2 w-full py-1.5 text-[10px]" type="button" onClick={() => startCreation(item)}>Iniciar criacao</button> : null}{lane === "Criacao" && item.status === "RELEASED" ? <button className="secondary-action mt-2 w-full py-1.5 text-[10px]" type="button" onClick={() => updateProduction(item.id, "IN_PROGRESS")}>Iniciar producao</button> : null}{lane === "Producao" ? <button className="secondary-action mt-2 w-full py-1.5 text-[10px]" type="button" onClick={() => updateProduction(item.id, "COMPLETED")}>Concluir producao</button> : null}{lane === "Finalizacao" && delivery ? <button className="secondary-action mt-2 w-full py-1.5 text-[10px]" type="button" onClick={() => updateDelivery(delivery.id, "SCHEDULED")}>Liberar expedicao</button> : null}{lane === "Expedicao" && delivery ? <button className="secondary-action mt-2 w-full py-1.5 text-[10px]" type="button" onClick={() => updateDelivery(delivery.id, "DELIVERED")}>Marcar entregue</button> : null}</article>; })}{!items.length ? <p className="text-[10px] font-bold text-slate-400">Sem pedidos.</p> : null}</div></div>;
+            return <div key={lane} className="min-h-48 rounded-lg border border-slate-200 bg-slate-50 p-3"><div className="mb-3 flex items-center justify-between"><h3 className="text-xs font-black text-slate-700">{lane}</h3><span className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-slate-500">{items.length}</span></div><div className="space-y-2">{items.map((item: AnyRow) => { const delivery = deliveryRows.find((row: AnyRow) => row.orderId === item.orderId); const checklist = parseChecklist(item.checklist); const checklistReady = ["arte", "medidas", "material", "prazo", "arquivos"].every((key) => checklist[key]); const stepsDone = (item.steps || []).every((step: AnyRow) => ["COMPLETED", "SKIPPED"].includes(step.status)); return <article key={item.id} className="rounded-lg border border-slate-200 bg-white p-2"><p className="text-xs font-black text-slate-900">Pedido #{item.order?.number || "-"}</p><p className="mt-1 text-[10px] font-semibold text-slate-500">{item.order?.quote?.productInterest || "Produto"} | prazo {day(item.promisedAt)}</p>{lane === "Entrada" ? <button className="secondary-action mt-2 w-full py-1.5 text-[10px] disabled:opacity-50" disabled={!checklistReady} type="button" onClick={() => updateProduction(item.id, "RELEASED")}>{checklistReady ? "Liberar para criacao" : "Complete o checklist"}</button> : null}{lane === "Criacao" && item.status === "RELEASED" ? <button className="secondary-action mt-2 w-full py-1.5 text-[10px]" type="button" onClick={() => startCreation(item)}>Iniciar etapa Arte</button> : null}{lane === "Producao" ? <p className="mt-2 text-[10px] font-bold text-slate-500">Conclua a etapa em andamento na ficha abaixo.</p> : null}{lane === "Finalizacao" && delivery ? <button className="secondary-action mt-2 w-full py-1.5 text-[10px]" disabled={!stepsDone} type="button" onClick={() => updateDelivery(delivery.id, "SCHEDULED")}>Liberar expedicao</button> : null}{lane === "Expedicao" && delivery ? <button className="secondary-action mt-2 w-full py-1.5 text-[10px]" type="button" onClick={() => updateDelivery(delivery.id, "DELIVERED")}>Marcar entregue</button> : null}</article>; })}{!items.length ? <p className="text-[10px] font-bold text-slate-400">Sem pedidos.</p> : null}</div></div>;
           })}
         </div>
       </section> : null}
@@ -1327,6 +1327,11 @@ function ProductionCard({ item, materials, issueCategories, onStatus, onAction, 
   ];
   const missing = checklistItems.filter(([key]) => !checklist[key]).length;
   const activeStep = (item.steps || []).find((step: AnyRow) => step.status === "IN_PROGRESS");
+  const nextStep = (item.steps || []).find((step: AnyRow) => step.status === "PENDING");
+  const completedSteps = (item.steps || []).filter((step: AnyRow) => ["COMPLETED", "SKIPPED"].includes(step.status)).length;
+  const visibleSteps = (item.steps || []).filter((step: AnyRow) => step.status !== "PENDING" || step.id === nextStep?.id);
+  const allStepsCompleted = (item.steps || []).length > 0 && completedSteps === (item.steps || []).length;
+  const canStartStep = ["RELEASED", "IN_PROGRESS"].includes(item.status) && !activeStep;
   useEffect(() => {
     if (!activeStep?.startedAt) return;
     const interval = window.setInterval(() => setClock(Date.now()), 1000);
@@ -1415,14 +1420,15 @@ function ProductionCard({ item, materials, issueCategories, onStatus, onAction, 
       ) : null}
 
       <div className="mt-3 space-y-2">
-        {(item.steps || []).slice(0, 4).map((step: AnyRow) => (
+        <div className="flex items-center justify-between text-xs font-bold text-slate-500"><span>Etapas da ordem</span><span>{completedSteps}/{(item.steps || []).length} concluidas</span></div>
+        {visibleSteps.map((step: AnyRow) => (
           <div key={step.id} className="rounded-md border border-slate-100 p-2">
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs font-black text-slate-700">{step.name}</p>
               <span className={step.status === "IN_PROGRESS" ? "text-[10px] font-black text-emerald-700" : "text-[10px] font-black text-slate-400"}>{step.status === "IN_PROGRESS" ? elapsed(step.startedAt) : step.status === "COMPLETED" ? `${step.actualMinutes || 0} min` : labelForStatus(step.status)}</span>
             </div>
             <div className="mt-2 grid grid-cols-2 gap-2">
-              <button className="secondary-action py-2 text-xs" disabled={step.status !== "PENDING"} onClick={() => updateStep(step, "IN_PROGRESS")} type="button">Iniciar etapa</button>
+              <button className="secondary-action py-2 text-xs" disabled={step.status !== "PENDING" || !canStartStep} onClick={() => updateStep(step, "IN_PROGRESS")} type="button">Iniciar etapa</button>
               <button className="secondary-action py-2 text-xs" disabled={step.status !== "IN_PROGRESS"} onClick={() => updateStep(step, "COMPLETED")} type="button">Concluir etapa</button>
             </div>
           </div>
@@ -1430,8 +1436,7 @@ function ProductionCard({ item, materials, issueCategories, onStatus, onAction, 
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <button className="secondary-action py-2 text-xs" onClick={() => onStatus(item.id, "RELEASED")} type="button">Liberar</button>
-        <button className="secondary-action py-2 text-xs" onClick={() => onStatus(item.id, "IN_PROGRESS")} type="button">Iniciar</button>
+        <button className="secondary-action py-2 text-xs" disabled={item.status !== "PENDING" || missing > 0} onClick={() => onStatus(item.id, "RELEASED")} type="button">{missing ? "Complete checklist" : "Liberar ordem"}</button>
         <button className="secondary-action py-2 text-xs" onClick={registerConsumption} type="button">Consumo</button>
         <button className="secondary-action py-2 text-xs" onClick={registerIssue} type="button">Problema</button>
         <button className="secondary-action py-2 text-xs" onClick={registerRework} type="button">Retrabalho</button>
@@ -1444,7 +1449,7 @@ function ProductionCard({ item, materials, issueCategories, onStatus, onAction, 
           }} />
         </label>
         <button className="secondary-action py-2 text-xs" onClick={() => onStatus(item.id, "BLOCKED")} type="button">Bloquear</button>
-        <button className="primary-action py-2 text-xs" onClick={() => onStatus(item.id, "COMPLETED")} type="button">Concluir</button>
+        <button className="primary-action py-2 text-xs disabled:opacity-50" disabled={!allStepsCompleted || item.status !== "IN_PROGRESS"} onClick={() => onStatus(item.id, "COMPLETED")} type="button">Finalizar ordem</button>
       </div>
     </article>
   );
