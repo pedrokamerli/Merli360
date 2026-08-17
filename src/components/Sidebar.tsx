@@ -77,8 +77,7 @@ function graphicItemsFor(role?: SidebarUser["graphicRole"]) {
     { href: "/gestao-grafica/gestao", label: "Gestao", icon: BarChart3 }
   ];
   if (role === "GRAPHIC_OPERATIONS") return [
-    { href: "/gestao-grafica/operacao", label: "Producao", icon: Package },
-    { href: "/gestao-grafica/minhas-vendas", label: "Minhas Vendas", icon: Printer }
+    { href: "/gestao-grafica/operacao", label: "Producao e expedicao", icon: Package }
   ];
   if (role === "GRAPHIC_ADVISOR") return [{ href: "/gestao-grafica/gestao", label: "Gestao", icon: BarChart3 }];
   return [
@@ -88,6 +87,16 @@ function graphicItemsFor(role?: SidebarUser["graphicRole"]) {
     { href: "/gestao-grafica/gestao", label: "Gestao", icon: BarChart3 },
     { href: "/gestao-grafica/configuracoes", label: "Cadastros", icon: Settings }
   ];
+}
+
+function hasGrantedModule(value: string | undefined, module: string) {
+  if (!value || value === "all") return true;
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) && parsed.map(String).includes(module);
+  } catch {
+    return value.split(",").map((item) => item.trim()).includes(module);
+  }
 }
 
 const agroItems = [
@@ -117,10 +126,12 @@ export function Sidebar({ user }: { user: SidebarUser }) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isAgro = user.tenant.kind === "agro";
-  const onlyCrm = user.role !== "superadmin" && user.moduleAccess !== "all" && Boolean(user.moduleAccess?.includes("crm"));
+  const hasCrm = hasGrantedModule(user.moduleAccess, "crm");
+  const hasGraphic = hasGrantedModule(user.moduleAccess, "gestao-grafica");
+  const onlyCrm = user.role !== "superadmin" && hasCrm && !hasGraphic;
   const items = [
     ...(onlyCrm ? crmItems : [...(isAgro ? agroItems : consultoriaItems), { href: "/crm", label: "CRM Comercial", icon: Users }]),
-    ...graphicItemsFor(user.graphicRole),
+    ...(hasGraphic ? graphicItemsFor(user.graphicRole) : []),
     ...(user.role === "superadmin" ? [
       { href: "/usuarios", label: "Usuarios SaaS", icon: Users }
     ] : [])

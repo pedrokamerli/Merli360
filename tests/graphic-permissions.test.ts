@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { defaultGraphicRoleForUser, graphicRoleSettingKey, hasGraphicPermission, parseGraphicRole } from "../src/lib/graphic";
+import { defaultGraphicRoleForUser, graphicRoleSettingKey, hasGraphicAccess, hasGraphicPermission, parseGraphicRole } from "../src/lib/graphic";
 
 test("normaliza papeis operacionais validos da grafica", () => {
   assert.equal(parseGraphicRole("owner_admin"), "GRAPHIC_OWNER");
@@ -14,6 +14,12 @@ test("define fallback seguro pelo papel global do usuario", () => {
   assert.equal(defaultGraphicRoleForUser({ role: "superadmin" }), "GRAPHIC_OWNER");
   assert.equal(defaultGraphicRoleForUser({ role: "admin" }), "GRAPHIC_OWNER");
   assert.equal(defaultGraphicRoleForUser({ role: "user" }), "GRAPHIC_SALES");
+});
+
+test("nao transforma acesso ao CRM em acesso a grafica", () => {
+  assert.equal(hasGraphicAccess({ role: "user", moduleAccess: '["crm"]' }), false);
+  assert.equal(hasGraphicAccess({ role: "user", moduleAccess: '["gestao-grafica"]' }), true);
+  assert.equal(hasGraphicAccess({ role: "admin", moduleAccess: "all" }), true);
 });
 
 test("restringe acoes criticas por perfil operacional", () => {

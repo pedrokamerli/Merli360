@@ -55,7 +55,7 @@ export type GraphicUser = {
 };
 
 export function hasGraphicAccess(user: { role: string; moduleAccess?: string | null }) {
-  return hasModuleAccess(user, GRAPHIC_MODULE) || hasModuleAccess(user, "crm");
+  return hasModuleAccess(user, GRAPHIC_MODULE);
 }
 
 export function assertGraphicAccess(user: GraphicUser) {
@@ -102,7 +102,7 @@ export type GraphicWorkspace = "commercial" | "sales" | "administrative" | "oper
 export function hasGraphicWorkspaceAccess(role: GraphicRole, workspace: GraphicWorkspace) {
   if (role === "GRAPHIC_OWNER") return true;
   if (workspace === "commercial") return role === "GRAPHIC_SALES";
-  if (workspace === "sales") return role === "GRAPHIC_OPERATIONS";
+  if (workspace === "sales") return role === "GRAPHIC_SALES";
   if (workspace === "administrative") return role === "GRAPHIC_ADMIN";
   if (workspace === "operations") return role === "GRAPHIC_OPERATIONS";
   if (workspace === "management") return role === "GRAPHIC_ADMIN" || role === "GRAPHIC_ADVISOR";

@@ -19,6 +19,8 @@ test("separa workspaces por responsabilidade", () => {
   assert.equal(hasGraphicWorkspaceAccess("GRAPHIC_SALES", "administrative"), false);
   assert.equal(hasGraphicWorkspaceAccess("GRAPHIC_ADMIN", "administrative"), true);
   assert.equal(hasGraphicWorkspaceAccess("GRAPHIC_OPERATIONS", "operations"), true);
+  assert.equal(hasGraphicWorkspaceAccess("GRAPHIC_OPERATIONS", "sales"), false);
+  assert.equal(hasGraphicWorkspaceAccess("GRAPHIC_SALES", "sales"), true);
   assert.equal(hasGraphicWorkspaceAccess("GRAPHIC_ADVISOR", "management"), true);
   assert.equal(hasGraphicWorkspaceAccess("GRAPHIC_OWNER", "settings"), true);
 });
