@@ -3,15 +3,10 @@ import path from "path";
 import { mkdir, writeFile } from "fs/promises";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { graphicProductionSteps } from "@/lib/graphic";
+import { approveGraphicQuote } from "@/lib/graphic-commercial";
 import { safeGraphicAttachmentExt, validateGraphicAttachment } from "@/lib/graphic-attachments";
 
 export const dynamic = "force-dynamic";
-
-async function nextOrderNumber(db: any, tenantId: string) {
-  const last = await db.graphicOrder.findFirst({ where: { tenantId }, orderBy: { number: "desc" }, select: { number: true } });
-  return (last?.number || 0) + 1;
-}
 
 async function findQuote(token: string) {
   return (prisma as any).graphicQuote.findFirst({
@@ -36,23 +31,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!quote) return NextResponse.json({ error: "Orcamento nao encontrado." }, { status: 404 });
 
     if (action === "approve") {
-      if (quote.status === "APPROVED") return NextResponse.json({ item: quote.orders[0], alreadyApproved: true });
-      if (new Date(quote.validUntil) < new Date()) return NextResponse.json({ error: "Este orcamento venceu. Solicite uma nova versao." }, { status: 400 });
-      if (quote.approvalRequired) return NextResponse.json({ error: "Este orcamento precisa de revisao comercial antes da aprovacao." }, { status: 400 });
-      const result = await (prisma as any).$transaction(async (tx: any) => {
-        const current = await tx.graphicQuote.findFirst({ where: { id: quote.id, tenantId: quote.tenantId }, include: { items: true, orders: true } });
-        if (current.status === "APPROVED") return { order: current.orders[0], alreadyApproved: true };
-        const orderNumber = await nextOrderNumber(tx, quote.tenantId);
-        await tx.graphicQuote.update({ where: { id: quote.id }, data: { status: "APPROVED", approvedAt: new Date() } });
-        const order = await tx.graphicOrder.create({ data: { tenantId: quote.tenantId, quoteId: quote.id, clientId: quote.clientId, number: orderNumber, soldValueCents: quote.totalPriceCents, billedValueCents: quote.totalPriceCents, commercialSnapshot: JSON.stringify({ quote, approvedPubliclyAt: new Date().toISOString() }), productionSnapshot: JSON.stringify({ items: quote.items }) } });
-        await tx.graphicOrderItem.createMany({ data: quote.items.map((item: any) => ({ tenantId: quote.tenantId, orderId: order.id, description: item.description, quantity: item.quantity, priceCents: item.priceCents, costCents: item.costCents, snapshot: JSON.stringify(item) })) });
-        const production = await tx.graphicProductionOrder.create({ data: { tenantId: quote.tenantId, orderId: order.id, status: "PENDING", checklist: JSON.stringify({ arte: false, medidas: false, material: false, prazo: false, arquivos: false }), technicalSnapshot: JSON.stringify({ quote, items: quote.items }) } });
-        await tx.graphicProductionStep.createMany({ data: graphicProductionSteps.map((name, position) => ({ tenantId: quote.tenantId, productionOrderId: production.id, name, position })) });
-        const expectedAt = new Date(); expectedAt.setDate(expectedAt.getDate() + Math.max(...quote.items.map((item: any) => Number(item.deadlineDays || 7)), 7));
-        await tx.graphicDelivery.create({ data: { tenantId: quote.tenantId, orderId: order.id, method: "RETIRADA", expectedAt, status: "PENDING" } });
-        if (quote.opportunityId) await tx.graphicOpportunity.update({ where: { id: quote.opportunityId }, data: { status: "WON", nextAction: "Aguardando arte do cliente", nextFollowUp: null } });
-        return { order, production, alreadyApproved: false };
-      });
+      const result = await approveGraphicQuote({ tenantId: quote.tenantId, quoteId: quote.id, approvedPublicly: true, auditAction: "graphic_approve_quote_public" });
       return NextResponse.json({ item: result.order, productionId: result.production?.id, alreadyApproved: result.alreadyApproved });
     }
 
@@ -80,6 +59,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
     return NextResponse.json({ error: "Acao publica invalida." }, { status: 400 });
   } catch (error: any) {
-    return NextResponse.json({ error: "Nao foi possivel concluir esta etapa.", detail: process.env.NODE_ENV === "production" ? undefined : String(error?.message || error) }, { status: 500 });
+    const messages: Record<string, string> = {
+      QUOTE_NOT_FOUND: "Orcamento nao encontrado.",
+      QUOTE_NOT_SENT: "Este orcamento ainda nao foi enviado para aprovacao.",
+      QUOTE_EXPIRED: "Este orcamento venceu. Solicite uma nova versao.",
+      QUOTE_WITHOUT_ITEMS: "Este orcamento nao possui itens validos.",
+      QUOTE_COMMERCIAL_APPROVAL_PENDING: "Este orcamento precisa de revisao comercial antes da aprovacao.",
+      QUOTE_APPROVAL_INCOMPLETE: "Este orcamento esta em revisao pela equipe."
+    };
+    const known = messages[error?.message];
+    return NextResponse.json({ error: known || "Nao foi possivel concluir esta etapa.", detail: process.env.NODE_ENV === "production" ? undefined : String(error?.message || error) }, { status: known ? 400 : 500 });
   }
 }

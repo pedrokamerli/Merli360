@@ -50,6 +50,11 @@ export function validateProductionStatusChange(current: string, next: string, ch
   return null;
 }
 
+export function validateProductionCompletion(steps: Array<{ name: string; status: string }>) {
+  const pending = steps.filter((step) => !["COMPLETED", "SKIPPED"].includes(step.status));
+  return pending.length ? `Conclua as etapas pendentes antes de finalizar: ${pending.map((step) => step.name).join(", ")}.` : null;
+}
+
 export function validateRework(reason: string, impact: string, correctiveAction: string) {
   if (!reason.trim()) return "Retrabalho exige motivo.";
   if (!impact.trim()) return "Retrabalho exige impacto.";

@@ -14,6 +14,8 @@ function workbookBuffer(sheets: Record<string, Record<string, unknown>[]>) {
 test("normaliza valores monetarios brasileiros da planilha", () => {
   assert.equal(moneyToCents("R$ 1.234,56"), 123456);
   assert.equal(moneyToCents("42,50"), 4250);
+  assert.equal(moneyToCents("96.3068"), 9631);
+  assert.equal(moneyToCents("6.444"), 644);
   assert.equal(moneyToCents(""), 0);
 });
 

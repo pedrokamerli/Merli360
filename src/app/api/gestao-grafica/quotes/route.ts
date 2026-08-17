@@ -3,8 +3,8 @@ import crypto from "crypto";
 import { requireApiUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
-import { assertGraphicPermission, calculateGraphicPricing, cents, dateOrNull, ensureGraphicDefaults, getGraphicSettings, graphicProductionSteps } from "@/lib/graphic";
-import { buildGraphicInstallments } from "@/lib/graphic-receivables";
+import { assertGraphicPermission, calculateGraphicPricing, cents, dateOrNull, ensureGraphicDefaults, getGraphicSettings } from "@/lib/graphic";
+import { approveGraphicQuote } from "@/lib/graphic-commercial";
 import { nextQuoteVersion, validateCommercialApproval, validateQuoteStatusAction } from "@/lib/graphic-quotes";
 
 export const dynamic = "force-dynamic";
@@ -127,6 +127,9 @@ export async function PUT(request: NextRequest) {
           });
           if (quote.opportunityId) {
             await tx.graphicOpportunity.update({ where: { id: quote.opportunityId }, data: { nextAction, nextFollowUp, qualityAlert: null, updatedById: user.id } });
+            await tx.graphicActivity.create({
+              data: { tenantId: user.tenantId, opportunityId: quote.opportunityId, userId: user.id, type: "QUOTE_SENT", channel: "CRM", result: `Orcamento #${quote.number} enviado`, createdById: user.id, updatedById: user.id }
+            });
           }
         }
         return updated;
@@ -227,91 +230,16 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ item: result });
     }
 
-    const result = await db.$transaction(async (tx: any) => {
-      const quote = await tx.graphicQuote.findFirst({ where: { id, tenantId: user.tenantId }, include: { items: true, approvals: { where: { status: "PENDING" } } } });
-      if (!quote) throw new Error("QUOTE_NOT_FOUND");
-      if (quote.status === "APPROVED") {
-        const existingOrder = await tx.graphicOrder.findFirst({ where: { tenantId: user.tenantId, quoteId: quote.id } });
-        const existingProduction = existingOrder ? await tx.graphicProductionOrder.findFirst({ where: { tenantId: user.tenantId, orderId: existingOrder.id } }) : null;
-        if (existingOrder && existingProduction) return { quote, order: existingOrder, production: existingProduction, alreadyApproved: true };
-        throw new Error("QUOTE_ALREADY_APPROVED");
-      }
-      if (new Date(quote.validUntil) < new Date()) throw new Error("QUOTE_EXPIRED");
-      if (quote.approvalRequired || quote.approvals.length) throw new Error("QUOTE_COMMERCIAL_APPROVAL_PENDING");
-      const orderNumber = await nextNumber(tx, user.tenantId, "graphicOrder");
-      const approvedQuote = await tx.graphicQuote.update({ where: { id }, data: { status: "APPROVED", approvedAt: new Date(), approvedById: user.id, updatedById: user.id } });
-      const order = await tx.graphicOrder.create({
-        data: {
-          tenantId: user.tenantId,
-          quoteId: quote.id,
-          clientId: quote.clientId,
-          number: orderNumber,
-          soldValueCents: quote.totalPriceCents,
-          billedValueCents: quote.totalPriceCents,
-          commercialSnapshot: JSON.stringify({ quote, approvedAt: new Date().toISOString() }),
-          productionSnapshot: JSON.stringify({ items: quote.items }),
-          createdById: user.id,
-          updatedById: user.id
-        }
-      });
-      await tx.graphicOrderItem.createMany({
-        data: quote.items.map((item: any) => ({
-          tenantId: user.tenantId,
-          orderId: order.id,
-          description: item.description,
-          quantity: item.quantity,
-          priceCents: item.priceCents,
-          costCents: item.costCents,
-          snapshot: JSON.stringify(item),
-          createdById: user.id,
-          updatedById: user.id
-        }))
-      });
-      const production = await tx.graphicProductionOrder.create({
-        data: {
-          tenantId: user.tenantId,
-          orderId: order.id,
-          status: "PENDING",
-          checklist: JSON.stringify({ arte: false, medidas: false, material: false, prazo: false, arquivos: false }),
-          technicalSnapshot: JSON.stringify({ quote, items: quote.items }),
-          createdById: user.id,
-          updatedById: user.id
-        }
-      });
-      await tx.graphicProductionStep.createMany({
-        data: graphicProductionSteps.map((name, position) => ({ tenantId: user.tenantId, productionOrderId: production.id, name, position, createdById: user.id, updatedById: user.id }))
-      });
-      const approvalDate = new Date();
-      const installments = buildGraphicInstallments(quote.totalPriceCents, quote.paymentTerms, approvalDate);
-      const expectedDelivery = new Date();
-      expectedDelivery.setDate(expectedDelivery.getDate() + 7);
-      for (const installment of installments) {
-        const title = await tx.financialTitle.create({
-          data: {
-            tenantId: user.tenantId,
-            type: "RECEIVABLE",
-            origin: "GESTAO_GRAFICA",
-            contactLegacyId: quote.clientId,
-            description: installments.length === 1 ? `Pedido grafica ${order.number}` : `Pedido grafica ${order.number} - parcela ${installment.number}/${installments.length}`,
-            category: "Receita grafica",
-            dueDate: installment.dueDate,
-            originalAmountCents: installment.amountCents,
-            status: "OPEN",
-            notes: `${installment.label}. Condicao: ${quote.paymentTerms || "A combinar"}.`
-          }
-        });
-        await tx.graphicReceivable.create({ data: { tenantId: user.tenantId, orderId: order.id, financialTitleId: title.id, dueDate: installment.dueDate, amountCents: installment.amountCents, notes: installment.label, createdById: user.id, updatedById: user.id } });
-      }
-      await tx.graphicDelivery.create({ data: { tenantId: user.tenantId, orderId: order.id, method: "RETIRADA", expectedAt: expectedDelivery, status: "PENDING", createdById: user.id, updatedById: user.id } });
-      return { quote: approvedQuote, order, production };
-    });
+    const result = await approveGraphicQuote({ tenantId: user.tenantId, quoteId: id, userId: user.id, auditAction: "graphic_approve_quote" });
 
-    await audit({ tenantId: user.tenantId, userId: user.id, action: "graphic_approve_quote", entity: "GraphicQuote", entityId: id, request, metadata: { orderId: result.order.id, productionOrderId: result.production.id } });
     return NextResponse.json(result);
   } catch (error: any) {
     const messages: Record<string, string> = {
       QUOTE_NOT_FOUND: "Orcamento nao encontrado.",
       QUOTE_ALREADY_APPROVED: "Orcamento ja aprovado.",
+      QUOTE_APPROVAL_INCOMPLETE: "Orcamento aprovado sem pedido vinculado. Revise a operacao antes de continuar.",
+      QUOTE_NOT_SENT: "Envie o orcamento ao cliente antes de aprovar.",
+      QUOTE_WITHOUT_ITEMS: "Inclua pelo menos um item antes de aprovar.",
       QUOTE_EXPIRED: "Orcamento vencido. Gere uma nova versao antes de aprovar.",
       QUOTE_COMMERCIAL_APPROVAL_PENDING: "Aprove a excecao comercial antes de gerar pedido."
     };

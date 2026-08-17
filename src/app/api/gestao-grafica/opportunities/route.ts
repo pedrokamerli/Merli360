@@ -23,60 +23,56 @@ export async function POST(request: NextRequest) {
     const initialStatus = String(body.status || "OPEN");
     if (!allowedStages.map((stage: any) => stage.name).includes(initialStatus)) return NextResponse.json({ error: "Etapa de oportunidade invalida." }, { status: 400 });
 
-    const client = await db.client.upsert({
-      where: { id: String(body.clientId || "new") },
-      update: {},
-      create: {
-        tenantId: user.tenantId,
-        name: clientName,
-        type: "grafica",
-        phone: String(body.phone || "") || null,
-        email: String(body.email || "") || null,
-        city: String(body.city || "") || null,
-        state: String(body.state || "") || null,
-        segment: "Grafica"
-      }
-    }).catch(async () => db.client.create({
-      data: {
-        tenantId: user.tenantId,
-        name: clientName,
-        type: "grafica",
-        phone: String(body.phone || "") || null,
-        email: String(body.email || "") || null,
-        city: String(body.city || "") || null,
-        state: String(body.state || "") || null,
-        segment: "Grafica"
-      }
-    }));
-
-    const opportunity = await db.graphicOpportunity.create({
-      data: {
-        tenantId: user.tenantId,
-        clientId: client.id,
-        ownerId: user.id,
-        title,
-        source: String(body.source || "Atendimento") || null,
-        productInterest: String(body.productInterest || "") || null,
-        estimatedValueCents: cents(body.estimatedValue),
-        status: initialStatus,
-        nextAction: String(body.nextAction || "") || null,
-        nextFollowUp: dateOrNull(body.nextFollowUp),
-        qualityAlert: opportunityQualityAlert({ status: "OPEN", nextAction: body.nextAction, nextFollowUp: body.nextFollowUp }),
-        createdById: user.id,
-        updatedById: user.id
-      }
-    });
-    if (shouldCreateFollowUpTask({ nextAction: opportunity.nextAction, nextFollowUp: opportunity.nextFollowUp })) {
-      await db.graphicTask.create({
-        data: { tenantId: user.tenantId, opportunityId: opportunity.id, assignedToId: user.id, title: opportunity.nextAction, dueDate: opportunity.nextFollowUp, createdById: user.id, updatedById: user.id }
+    const { client, opportunity } = await db.$transaction(async (tx: any) => {
+      const requestedClientId = String(body.clientId || "").trim();
+      const client = requestedClientId
+        ? await tx.client.findFirst({ where: { id: requestedClientId, tenantId: user.tenantId } })
+        : await tx.client.create({
+            data: {
+              tenantId: user.tenantId,
+              name: clientName,
+              type: "grafica",
+              phone: String(body.phone || "") || null,
+              email: String(body.email || "") || null,
+              city: String(body.city || "") || null,
+              state: String(body.state || "") || null,
+              segment: "Grafica"
+            }
+          });
+      if (!client) throw new Error("CLIENT_NOT_FOUND");
+      const opportunity = await tx.graphicOpportunity.create({
+        data: {
+          tenantId: user.tenantId,
+          clientId: client.id,
+          ownerId: user.id,
+          title,
+          source: String(body.source || "Atendimento") || null,
+          productInterest: String(body.productInterest || "") || null,
+          estimatedValueCents: cents(body.estimatedValue),
+          status: initialStatus,
+          nextAction: String(body.nextAction || "") || null,
+          nextFollowUp: dateOrNull(body.nextFollowUp),
+          qualityAlert: opportunityQualityAlert({ status: "OPEN", nextAction: body.nextAction, nextFollowUp: body.nextFollowUp }),
+          createdById: user.id,
+          updatedById: user.id
+        }
       });
-    }
+      await tx.graphicActivity.create({
+        data: { tenantId: user.tenantId, opportunityId: opportunity.id, userId: user.id, type: "CREATED", channel: "CRM", result: "Atendimento criado", createdById: user.id, updatedById: user.id }
+      });
+      if (shouldCreateFollowUpTask({ nextAction: opportunity.nextAction, nextFollowUp: opportunity.nextFollowUp })) {
+        await tx.graphicTask.create({
+          data: { tenantId: user.tenantId, opportunityId: opportunity.id, assignedToId: user.id, title: opportunity.nextAction, dueDate: opportunity.nextFollowUp, createdById: user.id, updatedById: user.id }
+        });
+      }
+      return { client, opportunity };
+    });
 
     await audit({ tenantId: user.tenantId, userId: user.id, action: "graphic_create_opportunity", entity: "GraphicOpportunity", entityId: opportunity.id, request });
     return NextResponse.json({ item: opportunity, client });
   } catch (error: any) {
-    const status = error?.message === "UNAUTHORIZED" ? 401 : error?.message === "FORBIDDEN_GRAPHIC_PERMISSION" || error?.message === "FORBIDDEN_MODULE" ? 403 : 500;
-    return NextResponse.json({ error: status === 403 ? "Seu perfil nao permite criar oportunidades." : "Nao foi possivel criar a oportunidade.", detail: process.env.NODE_ENV === "production" ? undefined : String(error?.message || error) }, { status });
+    const status = error?.message === "UNAUTHORIZED" ? 401 : error?.message === "FORBIDDEN_GRAPHIC_PERMISSION" || error?.message === "FORBIDDEN_MODULE" ? 403 : error?.message === "CLIENT_NOT_FOUND" ? 404 : 500;
+    return NextResponse.json({ error: status === 403 ? "Seu perfil nao permite criar oportunidades." : status === 404 ? "Cliente nao encontrado neste ambiente." : "Nao foi possivel criar a oportunidade.", detail: process.env.NODE_ENV === "production" ? undefined : String(error?.message || error) }, { status });
   }
 }
 

@@ -114,6 +114,7 @@ export function GestaoGraficaWorkspace({ workspace, scope = "all" }: { workspace
   const [extraQuoteItems, setExtraQuoteItems] = useState<Array<typeof quoteInitial>>([]);
   const initialTab: GraphicTab = workspace === "operations" ? "production" : workspace === "administrative" ? "finance" : workspace === "management" ? "dashboard" : workspace === "settings" ? "base" : "commercial";
   const [activeTab, setActiveTab] = useState<GraphicTab>(initialTab);
+  const [settingsSection, setSettingsSection] = useState<"catalog" | "pricing" | "team" | "import">("catalog");
 
   async function load() {
     setLoading(true);
@@ -693,9 +694,26 @@ export function GestaoGraficaWorkspace({ workspace, scope = "all" }: { workspace
       {activeTab === "base" ? <section className="surface-panel p-4">
         <div className="mb-4 flex items-center gap-2">
           <Settings size={18} className="text-emerald-600" />
-          <h2 className="text-lg font-black text-slate-950">Configuracoes da grafica</h2>
+          <p className="text-sm font-bold text-slate-500">Escolha uma area para ajustar.</p>
         </div>
-        <div className="mb-4 rounded-lg border border-slate-200 bg-white p-3">
+        <nav className="mb-4 flex gap-2 overflow-x-auto pb-1" aria-label="Areas de configuracao">
+          {[
+            ["catalog", "Catalogo"],
+            ["pricing", "Precificacao"],
+            ["team", "Equipe e funil"],
+            ["import", "Importar planilha"]
+          ].map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setSettingsSection(key as "catalog" | "pricing" | "team" | "import")}
+              className={`shrink-0 rounded-md border px-3 py-2 text-xs font-black transition ${settingsSection === key ? "border-slate-950 bg-slate-950 text-white" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+        <div className={settingsSection === "import" ? "mb-4 rounded-lg border border-slate-200 bg-white p-3" : "hidden"}>
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <h3 className="font-black text-slate-950">Importar base da grafica</h3>
@@ -731,30 +749,40 @@ export function GestaoGraficaWorkspace({ workspace, scope = "all" }: { workspace
             </div>
           ) : null}
         </div>
-        <div className="grid gap-4 xl:grid-cols-3">
-          <CatalogBox title="Produto" fields={[
-            { key: "name", placeholder: "Produto" },
-            { key: "category", placeholder: "Categoria", value: "Comunicacao visual" },
-            { key: "unit", placeholder: "Unidade", value: "unidade" }
-          ]} onSave={(payload) => saveCatalog("product", payload)} />
-          <CatalogBox title="Material" fields={[
-            { key: "name", placeholder: "Material" },
-            { key: "code", placeholder: "Codigo" },
-            { key: "unit", placeholder: "Unidade", value: "m2" },
-            { key: "initialStock", placeholder: "Saldo inicial" },
-            { key: "minStock", placeholder: "Estoque minimo" },
-            { key: "location", placeholder: "Localizacao" },
-            { key: "currentCost", placeholder: "Custo R$" },
-            { key: "wastePercent", placeholder: "Perda %", value: "8" }
-          ]} onSave={(payload) => saveCatalog("material", payload)} />
-          <CatalogBox title="Processo" fields={[
-            { key: "name", placeholder: "Processo" },
-            { key: "processType", placeholder: "Tipo", value: "INTERNAL" },
-            { key: "unit", placeholder: "Unidade", value: "hora" },
-            { key: "cost", placeholder: "Custo R$" }
-          ]} onSave={(payload) => saveCatalog("process", payload)} />
+        {settingsSection === "catalog" ? <>
+          <div className="grid gap-4 xl:grid-cols-3">
+            <CatalogBox title="Produto" fields={[
+              { key: "name", placeholder: "Produto" },
+              { key: "category", placeholder: "Categoria", value: "Comunicacao visual" },
+              { key: "unit", placeholder: "Unidade", value: "unidade" }
+            ]} onSave={(payload) => saveCatalog("product", payload)} />
+            <CatalogBox title="Material" fields={[
+              { key: "name", placeholder: "Material" },
+              { key: "code", placeholder: "Codigo" },
+              { key: "unit", placeholder: "Unidade", value: "m2" },
+              { key: "initialStock", placeholder: "Saldo inicial" },
+              { key: "minStock", placeholder: "Estoque minimo" },
+              { key: "location", placeholder: "Localizacao" },
+              { key: "currentCost", placeholder: "Custo R$" },
+              { key: "wastePercent", placeholder: "Perda %", value: "8" }
+            ]} onSave={(payload) => saveCatalog("material", payload)} />
+            <CatalogBox title="Processo" fields={[
+              { key: "name", placeholder: "Processo" },
+              { key: "processType", placeholder: "Tipo", value: "INTERNAL" },
+              { key: "unit", placeholder: "Unidade", value: "hora" },
+              { key: "cost", placeholder: "Custo R$" }
+            ]} onSave={(payload) => saveCatalog("process", payload)} />
+          </div>
+          <div className="mt-4 grid gap-3 xl:grid-cols-3">
+            <CatalogList title="Produtos" type="product" rows={products} value={(item) => `${item.category || item.unit}${item.components?.[0]?.material?.name ? ` | ${item.components[0].material.name}` : ""}`} onSave={saveCatalog} />
+            <CatalogList title="Materiais" type="material" rows={materials} value={(item) => `${brl(item.currentCostCents)} | perda ${Number(item.wastePercent || 0).toFixed(1)}%`} onSave={saveCatalog} />
+            <CatalogList title="Processos" type="process" rows={processes} value={(item) => `${brl(item.costCents)} | ${item.type}`} onSave={saveCatalog} />
+          </div>
+        </> : null}
+        {settingsSection === "pricing" ? <div className="grid gap-4 xl:grid-cols-3">
           <GraphicSettingsForm settings={settingMap} canManageSettings={Boolean(data?.canManageSettings)} onSave={(payload) => saveCatalog("setting", payload)} />
-          {data?.canManageSettings ? (
+        </div> : null}
+        {settingsSection === "team" && data?.canManageSettings ? <div className="grid gap-4 xl:grid-cols-2">
             <div className="rounded-lg border border-slate-200 bg-white p-3">
               <h3 className="font-black text-slate-950">Papeis da equipe</h3>
               <div className="mt-3 grid gap-2">
@@ -772,20 +800,12 @@ export function GestaoGraficaWorkspace({ workspace, scope = "all" }: { workspace
                 )) : <p className="rounded-lg bg-slate-50 p-3 text-xs font-bold text-slate-500">Nenhum usuario do tenant encontrado.</p>}
               </div>
             </div>
-          ) : null}
-          {data?.canManageSettings ? (
             <CatalogBox title="Etapa do funil" fields={[
               { key: "name", placeholder: "Nome da etapa" },
               { key: "position", placeholder: "Posicao", value: String(stages.length) },
               { key: "kind", placeholder: "Tipo", value: "ACTIVE" }
             ]} onSave={(payload) => saveCatalog("stage", payload)} />
-          ) : null}
-        </div>
-          <div className="mt-4 grid gap-3 xl:grid-cols-3">
-          <CatalogList title="Produtos" type="product" rows={products} value={(item) => `${item.category || item.unit}${item.components?.[0]?.material?.name ? ` | ${item.components[0].material.name}` : ""}`} onSave={saveCatalog} />
-          <CatalogList title="Materiais" type="material" rows={materials} value={(item) => `${brl(item.currentCostCents)} | perda ${Number(item.wastePercent || 0).toFixed(1)}%`} onSave={saveCatalog} />
-          <CatalogList title="Processos" type="process" rows={processes} value={(item) => `${brl(item.costCents)} | ${item.type}`} onSave={saveCatalog} />
-        </div>
+        </div> : null}
       </section> : null}
 
       {activeTab === "commercial" ? <section className="grid gap-4 xl:grid-cols-[.95fr_1.05fr]">

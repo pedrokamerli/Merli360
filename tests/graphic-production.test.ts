@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { canReleaseProduction, mergeChecklist, missingChecklistItems, validateProductionStatusChange, validateRework } from "../src/lib/graphic-production";
+import { canReleaseProduction, mergeChecklist, missingChecklistItems, validateProductionCompletion, validateProductionStatusChange, validateRework } from "../src/lib/graphic-production";
 
 test("bloqueia liberacao de producao com checklist incompleto", () => {
   const checklist = mergeChecklist(null, { arte: true, medidas: true, material: true });
@@ -23,6 +23,11 @@ test("protege status finais da producao", () => {
   assert.match(validateProductionStatusChange("COMPLETED", "IN_PROGRESS", checklist) || "", /nao pode voltar/);
   assert.match(validateProductionStatusChange("CANCELLED", "PENDING", checklist) || "", /nao pode voltar/);
   assert.match(validateProductionStatusChange("PENDING", "COMPLETED", checklist) || "", /somente depois/);
+});
+
+test("nao conclui producao com etapa pendente", () => {
+  assert.match(validateProductionCompletion([{ name: "Arte", status: "COMPLETED" }, { name: "Impressao", status: "PENDING" }]) || "", /Impressao/);
+  assert.equal(validateProductionCompletion([{ name: "Arte", status: "COMPLETED" }, { name: "Impressao", status: "SKIPPED" }]), null);
 });
 
 test("retrabalho exige motivo impacto e acao corretiva", () => {

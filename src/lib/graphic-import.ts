@@ -56,7 +56,12 @@ function percentToNumber(value: unknown) {
 export function moneyToCents(value: unknown) {
   const raw = String(value ?? "").trim();
   if (!raw) return 0;
-  const cleaned = raw.replace(/\s/g, "").replace("R$", "").replace(/\./g, "").replace(",", ".").replace(/[^\d.-]/g, "");
+  const withoutCurrency = raw.replace(/\s/g, "").replace("R$", "").replace(/[^\d,.-]/g, "");
+  const cleaned = withoutCurrency.includes(",")
+    ? withoutCurrency.replace(/\./g, "").replace(",", ".")
+    : /^-?\d+\.\d+$/.test(withoutCurrency)
+      ? withoutCurrency
+      : withoutCurrency.replace(/\./g, "");
   const parsed = Number(cleaned || 0);
   return Number.isFinite(parsed) ? Math.round(parsed * 100) : 0;
 }

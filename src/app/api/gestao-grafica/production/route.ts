@@ -3,7 +3,7 @@ import { requireApiUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { assertGraphicPermission, cents } from "@/lib/graphic";
-import { isProductionStepStatus, mergeChecklist, positiveNumber, validateProductionStatusChange, validateRework } from "@/lib/graphic-production";
+import { isProductionStepStatus, mergeChecklist, positiveNumber, validateProductionCompletion, validateProductionStatusChange, validateRework } from "@/lib/graphic-production";
 import { refreshGraphicMaterialNeeds, registerGraphicProductionConsumption } from "@/lib/graphic-inventory";
 
 export const dynamic = "force-dynamic";
@@ -111,6 +111,10 @@ export async function PUT(request: NextRequest) {
     const checklist = mergeChecklist(existing.checklist, {});
     const statusError = validateProductionStatusChange(existing.status, status, checklist);
     if (statusError) return NextResponse.json({ error: statusError }, { status: 400 });
+    if (status === "COMPLETED") {
+      const completionError = validateProductionCompletion(existing.steps);
+      if (completionError) return NextResponse.json({ error: completionError }, { status: 400 });
+    }
     const item = await db.$transaction(async (tx: any) => {
       const updated = await tx.graphicProductionOrder.update({ where: { id }, data: { status, blockedReason: status === "BLOCKED" ? note : existing.blockedReason, updatedById: user.id } });
       await tx.graphicProductionEvent.create({ data: { tenantId: user.tenantId, productionOrderId: id, userId: user.id, action: `STATUS_${status}`, note: note || null, createdById: user.id, updatedById: user.id } });
