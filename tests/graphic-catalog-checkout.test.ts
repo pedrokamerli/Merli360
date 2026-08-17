@@ -2,22 +2,31 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { catalogCheckoutLine, normalizeGraphicCatalogCheckout } from "../src/lib/graphic-catalog-checkout";
 import { validateGraphicCatalogImage } from "../src/lib/graphic-catalog-images";
+import { graphicCatalogPaymentTerms, normalizeGraphicCatalogPaymentMethod } from "../src/lib/graphic-payment-methods";
 
 test("normaliza carrinho, contato e endereco do catalogo", () => {
   const result = normalizeGraphicCatalogCheckout({
     items: [{ variantId: "kit-1", quantity: 2 }, { variantId: "kit-1", quantity: 1 }],
+    paymentMethod: "Pix",
     customer: { name: "Pedro Merli", phone: "(14) 99886-8776", postalCode: "17.000-000", address: "Rua Um", number: "25", district: "Centro", city: "Bauru", state: "sp" }
   });
   assert.equal(result.error, null);
   assert.equal(result.customer.phone, "14998868776");
   assert.equal(result.customer.postalCode, "17000000");
   assert.equal(result.customer.state, "SP");
+  assert.equal(result.paymentMethod, "Pix");
   assert.deepEqual(result.items, [{ variantId: "kit-1", quantity: 3 }]);
 });
 
 test("bloqueia checkout sem telefone, endereco ou itens", () => {
   const result = normalizeGraphicCatalogCheckout({ customer: { name: "A", phone: "123" }, items: [] });
   assert.equal(result.error, "Informe seu nome.");
+});
+
+test("valida e descreve a forma de pagamento do carrinho", () => {
+  assert.equal(normalizeGraphicCatalogPaymentMethod("Cartao de credito"), "Cartao de credito");
+  assert.equal(normalizeGraphicCatalogPaymentMethod("Cheque"), "");
+  assert.match(graphicCatalogPaymentTerms("Pix"), /Pix/);
 });
 
 test("multiplica kits, unidades, preco, custo e area", () => {

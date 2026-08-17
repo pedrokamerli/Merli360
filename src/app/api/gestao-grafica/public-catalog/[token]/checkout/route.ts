@@ -4,6 +4,7 @@ import { audit } from "@/lib/audit";
 import { catalogCheckoutLine, normalizeGraphicCatalogCheckout } from "@/lib/graphic-catalog-checkout";
 import { GRAPHIC_CATALOG_TOKEN_KEY } from "@/lib/graphic-catalog";
 import { getGraphicSettings } from "@/lib/graphic";
+import { graphicCatalogPaymentTerms } from "@/lib/graphic-payment-methods";
 import { normalizePhone } from "@/lib/crm";
 import { prisma } from "@/lib/prisma";
 
@@ -87,7 +88,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         closeChance: 70,
         nextAction: "Revisar solicitacao e calcular frete",
         nextFollowUp: now,
-        notes: "Solicitacao criada pelo carrinho do catalogo publico."
+        notes: `Solicitacao criada pelo carrinho do catalogo publico. Pagamento preferido: ${normalized.paymentMethod}.`
       };
       lead = lead ? await tx.lead.update({ where: { id: lead.id }, data: { ...leadData, name: lead.name || leadData.name, companyName: lead.companyName || leadData.companyName, notes: [lead.notes, leadData.notes].filter(Boolean).join("\n") } }) : await tx.lead.create({ data: { tenantId: setting.tenantId, ...leadData } });
 
@@ -102,7 +103,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         status: "PENDING_REVIEW",
         source: "PUBLIC_CATALOG",
         validUntil,
-        paymentTerms: "Frete, prazo e pagamento serao confirmados pela equipe Studium.",
+        paymentTerms: graphicCatalogPaymentTerms(normalized.paymentMethod),
         notes: "Solicitacao recebida pelo carrinho do catalogo publico.",
         shippingPostalCode: normalized.customer.postalCode,
         shippingAddress: normalized.customer.address,
@@ -127,14 +128,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         quoteItems.push(quoteItem);
         await tx.graphicQuoteItemCost.create({ data: { tenantId: setting.tenantId, quoteItemId: quoteItem.id, type: "CATALOG", description: `Custo estimado: ${item.variant.catalogItem.name}`, quantity: item.kits, unitCostCents: item.variant.costCents, totalCostCents: item.costCents, status: item.variant.validationStatus } });
       }
-      await tx.graphicQuoteVersion.create({ data: { tenantId: setting.tenantId, quoteId: quote.id, version: 1, snapshot: JSON.stringify({ source: "PUBLIC_CATALOG", quote, items: quoteItems, customer: normalized.customer }) } });
+      await tx.graphicQuoteVersion.create({ data: { tenantId: setting.tenantId, quoteId: quote.id, version: 1, snapshot: JSON.stringify({ source: "PUBLIC_CATALOG", quote, items: quoteItems, customer: normalized.customer, paymentMethod: normalized.paymentMethod }) } });
       await tx.graphicApprovalRequest.create({ data: { tenantId: setting.tenantId, quoteId: quote.id, reason: quote.approvalReason } });
       await tx.graphicTask.create({ data: { tenantId: setting.tenantId, opportunityId: opportunity.id, title: `Revisar solicitacao do catalogo #${quote.number}`, dueDate: now } });
-      await tx.graphicActivity.create({ data: { tenantId: setting.tenantId, opportunityId: opportunity.id, type: "CATALOG_REQUEST", channel: "CATALOGO_PUBLICO", result: `Carrinho recebido com ${prepared.length} item(ns).` } });
+      await tx.graphicActivity.create({ data: { tenantId: setting.tenantId, opportunityId: opportunity.id, type: "CATALOG_REQUEST", channel: "CATALOGO_PUBLICO", result: `Carrinho recebido com ${prepared.length} item(ns). Pagamento preferido: ${normalized.paymentMethod}.` } });
       return { quote, client };
     });
 
-    await audit({ tenantId: setting.tenantId, action: "graphic_public_catalog_checkout", entity: "GraphicQuote", entityId: result.quote.id, request, metadata: { quoteNumber: result.quote.number, itemCount: prepared.length, totalPriceCents: totals.priceCents } });
+    await audit({ tenantId: setting.tenantId, action: "graphic_public_catalog_checkout", entity: "GraphicQuote", entityId: result.quote.id, request, metadata: { quoteNumber: result.quote.number, itemCount: prepared.length, totalPriceCents: totals.priceCents, paymentMethod: normalized.paymentMethod } });
     return NextResponse.json({
       quoteNumber: result.quote.number,
       status: result.quote.status,

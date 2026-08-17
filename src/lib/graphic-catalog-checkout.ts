@@ -1,4 +1,5 @@
 import { normalizePhone } from "@/lib/crm";
+import { normalizeGraphicCatalogPaymentMethod } from "@/lib/graphic-payment-methods";
 
 export type GraphicCatalogCheckoutItem = { variantId: string; quantity: number };
 export type GraphicCatalogCheckoutCustomer = {
@@ -15,6 +16,7 @@ export type GraphicCatalogCheckoutCustomer = {
 };
 
 export function normalizeGraphicCatalogCheckout(body: any) {
+  const paymentMethod = normalizeGraphicCatalogPaymentMethod(body?.paymentMethod);
   const customer: GraphicCatalogCheckoutCustomer = {
     name: String(body?.customer?.name || "").trim(),
     phone: normalizePhone(String(body?.customer?.phone || "")),
@@ -43,10 +45,11 @@ export function normalizeGraphicCatalogCheckout(body: any) {
     !customer.district ? "Informe o bairro." : "",
     !customer.city ? "Informe a cidade." : "",
     customer.state.length !== 2 ? "Informe a UF com 2 letras." : "",
+    !paymentMethod ? "Selecione a forma de pagamento." : "",
     !items.length ? "Adicione pelo menos um produto ao carrinho." : "",
     items.length > 25 ? "O carrinho aceita ate 25 itens diferentes." : ""
   ].filter(Boolean);
-  return { customer, items, error: errors[0] || null };
+  return { customer, items, paymentMethod, error: errors[0] || null };
 }
 
 export function catalogCheckoutLine(variant: { quantity: number; widthMm?: number | null; heightMm?: number | null; priceCents: number; costCents: number }, kitQuantity: number) {
