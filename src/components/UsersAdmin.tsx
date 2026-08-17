@@ -8,7 +8,7 @@ type UserRow = { id: string; username: string; name: string; role: string; tenan
 type LogRow = { id: string; action: string; entity?: string | null; status: string; message?: string | null; metadata?: string | null; createdAt: string; user?: { id: string; name: string; username: string } | null };
 
 const emptyForm = {
-  tenantMode: "new",
+  tenantMode: "existing",
   tenantId: "",
   tenantName: "",
   brandName: "",
@@ -150,8 +150,8 @@ export function UsersAdmin() {
             <label>
               <span className="mb-1 block text-xs font-black uppercase text-slate-500">Tenant</span>
               <select className="form-control" value={form.tenantMode} onChange={(event) => setForm({ ...form, tenantMode: event.target.value })}>
-                <option value="new">Criar novo cliente do SaaS</option>
                 <option value="existing">Usar tenant existente</option>
+                <option value="new">Criar novo cliente do SaaS</option>
               </select>
             </label>
             <ModulePicker value={form.moduleAccess} onChange={(moduleAccess) => setForm({ ...form, moduleAccess })} />

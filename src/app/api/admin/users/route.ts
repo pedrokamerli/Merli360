@@ -100,9 +100,10 @@ export async function POST(request: NextRequest) {
 
   if (!username || !password || !name) return NextResponse.json({ error: "Nome, usuario e senha sao obrigatorios." }, { status: 400 });
   if (password.length < 6) return NextResponse.json({ error: "Senha precisa ter pelo menos 6 caracteres." }, { status: 400 });
+  if (tenantMode === "existing" && !tenantId) return NextResponse.json({ error: "Selecione o tenant que recebera este usuario." }, { status: 400 });
 
   const tenant =
-    tenantMode === "existing" && tenantId
+    tenantMode === "existing"
       ? await prisma.tenant.findUnique({ where: { id: tenantId } })
       : await prisma.tenant.create({
           data: {
