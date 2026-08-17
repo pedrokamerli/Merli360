@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Clock3, Factory, Loader2, PackageCheck, Play, RefreshCw } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock3, Eye, Factory, Loader2, PackageCheck, Play, RefreshCw } from "lucide-react";
 import { GraphicCatalogRequestsPanel } from "@/components/GraphicCatalogRequestsPanel";
+import { GraphicProductionOrderDetails } from "@/components/GraphicProductionOrderDetails";
 
 type Row = Record<string, any>;
 type OperationsTab = "requests" | "production" | "delivery";
@@ -31,11 +32,11 @@ export function GraphicOperationsWorkspaceV2() {
   const [busyId, setBusyId] = useState("");
   const [message, setMessage] = useState("");
 
-  async function load() {
-    setLoading(true);
+  async function load(silent = false) {
+    if (!silent) setLoading(true);
     const response = await fetch("/api/gestao-grafica/summary", { cache: "no-store" });
     const body = await response.json();
-    setLoading(false);
+    if (!silent) setLoading(false);
     if (!response.ok) setMessage(body.error || "Nao foi possivel carregar a operacao.");
     else setData(body);
   }
@@ -92,7 +93,7 @@ export function GraphicOperationsWorkspaceV2() {
     {tab === "requests" && !loading ? <GraphicCatalogRequestsPanel requests={catalogRequests} compact /> : null}
 
     {tab === "production" && !loading ? <section className="space-y-4">
-      <div className="grid gap-4 xl:grid-cols-2">{openProduction.map((item: Row) => <ProductionOrderCard key={item.id} item={item} order={orders.find((order: Row) => order.id === item.orderId)} busy={busyId === item.id} onAction={productionAction} />)}{!openProduction.length ? <div className="surface-panel p-8 text-center"><CheckCircle2 className="mx-auto text-emerald-600" size={28} /><p className="mt-3 font-black text-slate-950">Nenhuma ordem aguardando producao.</p></div> : null}</div>
+      <div className="grid gap-4 xl:grid-cols-2">{openProduction.map((item: Row) => <ProductionOrderCard key={item.id} item={item} order={orders.find((order: Row) => order.id === item.orderId)} busy={busyId === item.id} onAction={productionAction} onUpdated={() => load(true)} />)}{!openProduction.length ? <div className="surface-panel p-8 text-center"><CheckCircle2 className="mx-auto text-emerald-600" size={28} /><p className="mt-3 font-black text-slate-950">Nenhuma ordem aguardando producao.</p></div> : null}</div>
       {completedProduction.length ? <details className="surface-panel p-4"><summary className="cursor-pointer text-sm font-black text-slate-700">Concluidas recentemente ({completedProduction.length})</summary><div className="mt-3 grid gap-2 md:grid-cols-2">{completedProduction.slice(0, 10).map((item: Row) => <div className="rounded-lg bg-slate-50 p-3 text-sm" key={item.id}><b>Pedido #{item.order?.number || "-"}</b><span className="ml-2 text-emerald-700">Producao concluida</span></div>)}</div></details> : null}
     </section> : null}
 
@@ -100,11 +101,13 @@ export function GraphicOperationsWorkspaceV2() {
   </main>;
 }
 
-function ProductionOrderCard({ item, order, busy, onAction }: { item: Row; order?: Row; busy: boolean; onAction: (id: string, payload: Row, success: string) => Promise<boolean> }) {
+function ProductionOrderCard({ item, order, busy, onAction, onUpdated }: { item: Row; order?: Row; busy: boolean; onAction: (id: string, payload: Row, success: string) => Promise<boolean>; onUpdated: () => Promise<void> }) {
   const [clock, setClock] = useState(Date.now());
   const [blockReason, setBlockReason] = useState("");
+  const [orderOpen, setOrderOpen] = useState(false);
+  const [orderReviewed, setOrderReviewed] = useState(false);
   const [checklist, setChecklist] = useState<Record<string, boolean>>(() => parseChecklist(item.checklist));
-  const checklistItems = [["arte", "Arte recebida"], ["medidas", "Medidas conferidas"], ["material", "Material disponivel"], ["prazo", "Prazo confirmado"], ["arquivos", "Arquivos conferidos"]];
+  const checklistItems = [["arquivos", "Arquivos do cliente recebidos"], ["arte", "Arte final aprovada"], ["medidas", "Medidas conferidas"], ["material", "Material disponivel"], ["prazo", "Prazo confirmado"]];
   const steps = item.steps || [];
   const activeStep = steps.find((step: Row) => step.status === "IN_PROGRESS");
   const nextStep = steps.find((step: Row) => step.status === "PENDING");
@@ -125,14 +128,14 @@ function ProductionOrderCard({ item, order, busy, onAction }: { item: Row; order
     if (!updated) setChecklist(parseChecklist(item.checklist));
   }
 
-  const currentAction = item.status === "PENDING" ? "Conferir entrada" : item.status === "BLOCKED" ? "Resolver bloqueio" : activeStep ? `Concluir ${activeStep.name}` : nextStep ? `Iniciar ${nextStep.name}` : "Finalizar ordem";
+  const currentAction = !orderReviewed ? "Ver pedido completo" : item.status === "PENDING" ? "Conferir entrada" : item.status === "BLOCKED" ? "Resolver bloqueio" : activeStep ? `Concluir ${activeStep.name}` : nextStep ? `Iniciar ${nextStep.name}` : "Finalizar ordem";
   return <article className="surface-panel overflow-hidden">
     <header className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-start sm:justify-between">
       <div><div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-black text-slate-950">Pedido #{item.order?.number || order?.number || "-"}</h2><span className={`rounded-full px-2 py-1 text-xs font-black ${item.status === "BLOCKED" ? "bg-rose-50 text-rose-700" : "bg-emerald-50 text-emerald-700"}`}>{productionLabel(item.status)}</span></div><p className="mt-1 text-sm font-semibold text-slate-600">{order?.clientName || "Cliente"} | {order?.productName || "Produto"}</p><p className="mt-1 text-xs font-bold text-slate-500">Prazo: {date(item.promisedAt)} | Prioridade: {item.priority || "NORMAL"}</p></div>
-      <div className="rounded-lg bg-slate-950 px-3 py-2 text-white"><p className="text-[10px] font-black uppercase text-slate-300">Proxima acao</p><p className="text-sm font-black">{currentAction}</p></div>
+      <div className="flex shrink-0 flex-col gap-2"><button className="primary-action inline-flex items-center justify-center gap-2 px-4 py-2" disabled={!order} onClick={() => setOrderOpen(true)} type="button"><Eye size={17} />Ver pedido</button><div className="rounded-lg bg-slate-950 px-3 py-2 text-white"><p className="text-[10px] font-black uppercase text-slate-300">Proxima acao</p><p className="text-sm font-black">{currentAction}</p></div></div>
     </header>
 
-    <div className="p-4">
+    {!orderReviewed ? <div className="p-4"><div className="rounded-lg border border-amber-200 bg-amber-50 p-4"><h3 className="font-black text-amber-950">Confira o pedido antes de produzir</h3><p className="mt-1 text-sm font-semibold text-amber-800">Abra a ficha para verificar cliente, endereco, todos os itens, medidas e arquivos enviados.</p><button className="primary-action mt-3 inline-flex w-full items-center justify-center gap-2 py-3" disabled={!order} onClick={() => setOrderOpen(true)} type="button"><Eye size={17} />Ver pedido completo</button></div></div> : <div className="p-4">
       <div className="mb-4"><div className="flex justify-between text-xs font-black text-slate-500"><span>Progresso da producao</span><span>{completed}/{steps.length} etapas</span></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full bg-emerald-500 transition-all" style={{ width: `${progress}%` }} /></div></div>
 
       {item.status === "PENDING" ? <section><h3 className="text-sm font-black text-slate-800">Checklist de entrada</h3><div className="mt-2 grid gap-2 sm:grid-cols-2">{checklistItems.map(([key, label]) => <label className="flex items-center gap-2 rounded-lg border border-slate-200 p-3 text-sm font-bold text-slate-700" key={key}><input checked={Boolean(checklist[key])} disabled={busy} onChange={(event) => void updateChecklist(key, event.target.checked)} type="checkbox" />{label}</label>)}</div><button className="primary-action mt-3 w-full py-3 disabled:opacity-50" disabled={!checklistReady || busy} onClick={() => void onAction(item.id, { status: "RELEASED" }, "Ordem liberada para iniciar.")} type="button">{checklistReady ? "Liberar ordem para producao" : "Conclua o checklist para liberar"}</button></section> : null}
@@ -142,7 +145,8 @@ function ProductionOrderCard({ item, order, busy, onAction }: { item: Row; order
       {item.status === "BLOCKED" ? <section className="rounded-lg border border-rose-200 bg-rose-50 p-4"><div className="flex gap-2"><AlertTriangle className="shrink-0 text-rose-600" size={18} /><div><h3 className="font-black text-rose-900">Ordem bloqueada</h3><p className="text-sm font-semibold text-rose-800">{item.blockedReason || "Motivo nao informado"}</p></div></div><button className="primary-action mt-3 w-full py-3" disabled={busy} onClick={() => void onAction(item.id, { status: "RELEASED", note: "Bloqueio resolvido" }, "Bloqueio resolvido. Ordem liberada.")} type="button">Retomar producao</button></section> : null}
 
       {["RELEASED", "IN_PROGRESS"].includes(item.status) ? <details className="mt-3 rounded-lg border border-slate-200 p-3"><summary className="cursor-pointer text-xs font-black text-slate-600">Registrar impedimento</summary><div className="mt-3 flex gap-2"><input className={`${inputClass} flex-1`} placeholder="Motivo do bloqueio" value={blockReason} onChange={(event) => setBlockReason(event.target.value)} /><button className="secondary-action px-3 py-2 text-xs text-rose-700 disabled:opacity-50" disabled={!blockReason.trim() || busy} onClick={() => void onAction(item.id, { status: "BLOCKED", note: blockReason }, "Ordem bloqueada e motivo registrado.")} type="button">Bloquear</button></div></details> : null}
-    </div>
+    </div>}
+    {orderOpen && order ? <GraphicProductionOrderDetails production={item} order={order} onClose={() => setOrderOpen(false)} onContinue={() => { setOrderReviewed(true); setOrderOpen(false); }} onUpdated={onUpdated} /> : null}
   </article>;
 }
 

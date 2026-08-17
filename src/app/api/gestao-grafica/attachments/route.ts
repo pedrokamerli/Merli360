@@ -1,12 +1,12 @@
 import crypto from "crypto";
 import path from "path";
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, unlink, writeFile } from "fs/promises";
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { assertGraphicPermission } from "@/lib/graphic";
-import { isGraphicAttachmentModel, normalizeGraphicPurpose, safeGraphicAttachmentExt, validateGraphicAttachment } from "@/lib/graphic-attachments";
+import { graphicAttachmentDirectory, isGraphicAttachmentModel, normalizeGraphicPurpose, safeGraphicAttachmentExt, validateGraphicAttachment } from "@/lib/graphic-attachments";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +49,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  let storagePath = "";
+  let committed = false;
   try {
     const user = await requireApiUser();
     await assertGraphicPermission(user, "production:update");
@@ -68,10 +70,14 @@ export async function POST(request: NextRequest) {
 
     const bytes = Buffer.from(await file.arrayBuffer());
     const filename = `${crypto.randomUUID()}${safeGraphicAttachmentExt(file.name, file.type)}`;
-    const dir = path.join(process.cwd(), "data", "uploads", user.tenantId, "grafica");
-    const storagePath = path.join(dir, filename);
+    const dir = graphicAttachmentDirectory(user.tenantId);
+    storagePath = path.join(dir, filename);
     await mkdir(dir, { recursive: true });
     await writeFile(storagePath, bytes);
+
+    const production = linkedModel === "production"
+      ? await db.graphicProductionOrder.findFirst({ where: { id: linkedId, tenantId: user.tenantId }, select: { checklist: true } })
+      : null;
 
     const result = await db.$transaction(async (tx: any) => {
       const attachment = await tx.attachment.create({
@@ -96,12 +102,35 @@ export async function POST(request: NextRequest) {
           data: { proofAttachmentId: attachment.id, updatedById: user.id }
         });
       }
+      if (linkedModel === "production" && production) {
+        const checklist = (() => { try { return JSON.parse(production.checklist || "{}"); } catch { return {}; } })();
+        const isFinalArtwork = ["FINAL_ARTWORK", "PROOF"].includes(purpose);
+        const hasCustomerFiles = ["ARTWORK", "CUSTOMER_ARTWORK", "LOGO", "DOCUMENT", "OTHER"].includes(purpose);
+        await tx.graphicProductionOrder.update({
+          where: { id: linkedId },
+          data: { checklist: JSON.stringify({ ...checklist, ...(hasCustomerFiles ? { arquivos: true } : {}), ...(isFinalArtwork ? { arte: false } : {}) }), updatedById: user.id }
+        });
+        await tx.graphicProductionEvent.create({
+          data: {
+            tenantId: user.tenantId,
+            productionOrderId: linkedId,
+            userId: user.id,
+            action: isFinalArtwork ? "FINAL_ARTWORK_UPLOADED" : "PRODUCTION_FILE_UPLOADED",
+            note: `${isFinalArtwork ? "Arte final" : "Arquivo"} anexado: ${file.name}`,
+            evidenceAttachmentId: attachment.id,
+            createdById: user.id,
+            updatedById: user.id
+          }
+        });
+      }
       return { attachment, graphicAttachment };
     });
 
+    committed = true;
     await audit({ tenantId: user.tenantId, userId: user.id, action: "graphic_upload_attachment", entity: "GraphicAttachment", entityId: result.graphicAttachment.id, request, metadata: { linkedModel, linkedId, purpose, originalName: file.name, sizeBytes: file.size } });
     return NextResponse.json({ item: result.graphicAttachment, attachment: result.attachment, url: `/api/attachments/${result.attachment.id}` });
   } catch (error: any) {
+    if (storagePath && !committed) await unlink(storagePath).catch(() => undefined);
     const status = error?.message === "UNAUTHORIZED" ? 401 : error?.message === "FORBIDDEN_GRAPHIC_PERMISSION" || error?.message === "FORBIDDEN_MODULE" ? 403 : 500;
     return NextResponse.json({ error: status === 403 ? "Seu perfil nao permite anexar arquivos na grafica." : "Nao foi possivel anexar arquivo da grafica.", detail: process.env.NODE_ENV === "production" ? undefined : String(error?.message || error) }, { status });
   }

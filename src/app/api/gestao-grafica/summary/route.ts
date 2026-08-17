@@ -31,8 +31,32 @@ export async function GET(request: NextRequest) {
     const [opportunities, quotes, orders, productionOrders, deliveries, postSales, receivables, products, catalogItems, materials, processes, settings, stages, existingClients, crmLeads] = await Promise.all([
       db.graphicOpportunity.findMany({ where: commercialWhere, orderBy: { updatedAt: "desc" }, take: 100, include: { owner: { select: { name: true, username: true } }, activities: { orderBy: { createdAt: "desc" }, take: 3 }, tasks: { where: { status: "OPEN" }, orderBy: { dueDate: "asc" }, take: 3 } } }),
       db.graphicQuote.findMany({ where: quoteWhere, orderBy: { updatedAt: "desc" }, take: 100, include: { items: { include: { product: { select: { name: true } }, catalogVariant: { include: { catalogItem: { select: { name: true } } } } } } } }),
-      db.graphicOrder.findMany({ where: orderWhere, orderBy: { createdAt: "desc" }, take: 50, include: { quote: { include: { opportunity: { select: { productInterest: true } }, items: { include: { product: { select: { name: true } } } } } } } }),
-      db.graphicProductionOrder.findMany({ where: { tenantId: user.tenantId }, orderBy: { updatedAt: "desc" }, take: 50, include: { order: { include: { quote: { select: { approvedAt: true } } } }, steps: { orderBy: { position: "asc" } }, consumptions: true, reworks: true } }),
+      db.graphicOrder.findMany({
+        where: orderWhere,
+        orderBy: { createdAt: "desc" },
+        take: 50,
+        include: {
+          items: { select: { id: true, description: true, quantity: true, priceCents: true, status: true } },
+          quote: {
+            select: {
+              id: true, number: true, shareToken: true, status: true, paymentTerms: true, notes: true,
+              shippingPostalCode: true, shippingAddress: true, shippingNumber: true, shippingComplement: true,
+              shippingDistrict: true, shippingCity: true, shippingState: true,
+              subtotalCents: true, freightCents: true, totalPriceCents: true, approvedAt: true,
+              opportunity: { select: { productInterest: true } },
+              items: {
+                select: {
+                  id: true, description: true, quantity: true, width: true, height: true, area: true,
+                  unit: true, deadlineDays: true, priceCents: true,
+                  product: { select: { name: true } },
+                  catalogVariant: { include: { catalogItem: { select: { name: true } } } }
+                }
+              }
+            }
+          }
+        }
+      }),
+      db.graphicProductionOrder.findMany({ where: { tenantId: user.tenantId }, orderBy: { updatedAt: "desc" }, take: 50, include: { order: { select: { number: true, quote: { select: { id: true, number: true } } } }, steps: { orderBy: { position: "asc" } }, events: { where: { status: "ACTIVE" }, orderBy: { createdAt: "desc" }, take: 100 }, consumptions: true, reworks: true } }),
       db.graphicDelivery.findMany({ where: { tenantId: user.tenantId }, orderBy: { expectedAt: "asc" }, take: 50, include: { order: true } }),
       db.graphicPostSale.findMany({ where: { tenantId: user.tenantId }, orderBy: { createdAt: "desc" }, take: 50, include: { order: true } }),
       db.graphicReceivable.findMany({ where: { tenantId: user.tenantId }, orderBy: { dueDate: "asc" }, take: 100 }),
@@ -95,7 +119,17 @@ export async function GET(request: NextRequest) {
     const clientsById = new Map<string, any>(clients.map((item: any) => [item.id, item]));
     const opportunityRows = opportunities.map((item: any) => ({ ...item, ownerName: item.owner?.name || item.owner?.username || "Sem responsavel" }));
     const quoteRows = quotes.map((item: any) => ({ ...item, client: clientsById.get(item.clientId) || null, productName: item.items?.[0]?.catalogVariant?.catalogItem?.name || item.items?.[0]?.product?.name || item.items?.[0]?.description || "Produto a definir" }));
-    const orderRows = orders.map((item: any) => ({ ...item, clientName: clientsById.get(item.clientId)?.name || "Cliente sem nome", clientSegment: clientsById.get(item.clientId)?.segment || "Sem segmento", productName: item.quote?.items?.[0]?.product?.name || item.quote?.items?.[0]?.description || item.quote?.opportunity?.productInterest || "Produto a definir" }));
+    const orderRows = orders.map((item: any) => {
+      const client = clientsById.get(item.clientId) || null;
+      const firstItem = item.quote?.items?.[0];
+      return {
+        ...item,
+        client,
+        clientName: client?.name || "Cliente sem nome",
+        clientSegment: client?.segment || "Sem segmento",
+        productName: firstItem?.catalogVariant?.catalogItem?.name || firstItem?.product?.name || firstItem?.description || item.quote?.opportunity?.productInterest || "Produto a definir"
+      };
+    });
     const tenantUsers = canManageSettings
       ? await db.user.findMany({ where: { tenantId: user.tenantId }, orderBy: { name: "asc" }, select: { id: true, name: true, username: true, role: true, moduleAccess: true } })
       : [];
