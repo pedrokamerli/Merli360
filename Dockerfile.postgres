@@ -31,7 +31,10 @@ COPY --from=builder /app/scripts ./scripts
 COPY --from=builder /app/src ./src
 COPY docker-entrypoint-postgres.sh ./docker-entrypoint-postgres.sh
 
-RUN chmod +x ./docker-entrypoint-postgres.sh && mkdir -p /app/data/uploads
+# Keep the entrypoint runnable when the repository is prepared on Windows.
+RUN sed -i 's/\r$//' ./docker-entrypoint-postgres.sh \
+  && chmod +x ./docker-entrypoint-postgres.sh \
+  && mkdir -p /app/data/uploads
 
 EXPOSE 3000
 ENTRYPOINT ["./docker-entrypoint-postgres.sh"]
