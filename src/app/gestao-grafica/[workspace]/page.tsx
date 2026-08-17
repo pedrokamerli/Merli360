@@ -2,7 +2,8 @@ import { notFound, redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { getGraphicRole, hasGraphicAccess, hasGraphicWorkspaceAccess, type GraphicWorkspace } from "@/lib/graphic";
 import { GestaoGraficaWorkspace } from "@/components/GestaoGraficaWorkspace";
-import { GraphicAdministrativeWorkspace } from "@/components/GraphicAdministrativeWorkspace";
+import { GraphicAdministrativeWorkspaceV2 } from "@/components/GraphicAdministrativeWorkspaceV2";
+import { GraphicCommercialWorkspaceV2 } from "@/components/GraphicCommercialWorkspaceV2";
 
 const workspaceAliases: Record<string, GraphicWorkspace> = {
   comercial: "commercial",
@@ -29,6 +30,7 @@ export default async function Page({ params }: { params: Promise<{ workspace: st
   if (!hasGraphicAccess(user)) redirect("/");
   const role = await getGraphicRole(user);
   if (!hasGraphicWorkspaceAccess(role, resolvedWorkspace)) redirect("/gestao-grafica");
-  if (resolvedWorkspace === "administrative") return <GraphicAdministrativeWorkspace />;
-  return <GestaoGraficaWorkspace workspace={resolvedWorkspace === "sales" ? "commercial" : resolvedWorkspace} scope={resolvedWorkspace === "sales" ? "mine" : "all"} />;
+  if (resolvedWorkspace === "administrative") return <GraphicAdministrativeWorkspaceV2 />;
+  if (resolvedWorkspace === "commercial" || resolvedWorkspace === "sales") return <GraphicCommercialWorkspaceV2 scope={resolvedWorkspace === "sales" ? "mine" : "all"} />;
+  return <GestaoGraficaWorkspace workspace={resolvedWorkspace} scope="all" />;
 }

@@ -128,7 +128,7 @@ export async function GET(request: NextRequest) {
       groups: dashboard.groups,
       opportunities: hasGraphicPermission(graphicRole, "opportunity:write") || graphicRole === "GRAPHIC_OWNER" ? opportunityRows : [],
       quotes: hasGraphicPermission(graphicRole, "quote:create") || canViewFinancial ? quoteRows : [],
-      orders: canViewFinancial || canViewProduction ? orderRows : [],
+      orders: hasGraphicPermission(graphicRole, "quote:create") || canViewFinancial || canViewProduction ? orderRows : [],
       productionOrders: canViewProduction ? productionRows : [],
       deliveries: canViewProduction ? deliveryRows : [],
       postSales: hasGraphicPermission(graphicRole, "post-sale:update") || graphicRole === "GRAPHIC_OWNER" ? postSales : [],
