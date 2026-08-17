@@ -429,24 +429,27 @@ model GraphicProduct {
 }
 
 model GraphicCatalogItem {
-  id            String                  @id @default(cuid())
-  tenantId      String
-  tenant        Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  slug          String
-  name          String
-  category      String
-  description   String?
-  imageUrl      String?
-  imagePosition String?
-  status        String                  @default("ACTIVE")
-  featured      Boolean                 @default(false)
-  sortOrder     Int                     @default(0)
-  source        String?
-  createdById   String?
-  updatedById   String?
-  createdAt     DateTime                @default(now())
-  updatedAt     DateTime                @updatedAt
-  variants      GraphicCatalogVariant[]
+  id                String                  @id @default(cuid())
+  tenantId          String
+  tenant            Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  slug              String
+  name              String
+  category          String
+  description       String?
+  imageUrl          String?
+  imagePosition     String?
+  imageStoragePath  String?
+  imageMimeType     String?
+  imageOriginalName String?
+  status            String                  @default("ACTIVE")
+  featured          Boolean                 @default(false)
+  sortOrder         Int                     @default(0)
+  source            String?
+  createdById       String?
+  updatedById       String?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  variants          GraphicCatalogVariant[]
 
   @@unique([tenantId, slug])
   @@index([tenantId, status, sortOrder])
@@ -807,49 +810,58 @@ model GraphicTask {
 }
 
 model GraphicQuote {
-  id                String                   @id @default(cuid())
-  tenantId          String
-  tenant            Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  opportunityId     String?
-  opportunity       GraphicOpportunity?      @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
-  clientId          String?
-  responsibleId     String?
-  responsible       User?                    @relation(fields: [responsibleId], references: [id], onDelete: SetNull)
-  number            Int
-  version           Int                      @default(1)
-  shareToken        String?
-  status            String                   @default("DRAFT")
-  validUntil        DateTime
-  paymentTerms      String?
-  notes             String?
-  subtotalCents     Int                      @default(0)
-  discountCents     Int                      @default(0)
-  urgencyCents      Int                      @default(0)
-  freightCents      Int                      @default(0)
-  installationCents Int                      @default(0)
-  totalCostCents    Int                      @default(0)
-  totalPriceCents   Int                      @default(0)
-  minimumPriceCents Int                      @default(0)
-  marginPercent     Float                    @default(0)
-  markupPercent     Float                    @default(0)
-  approvalRequired  Boolean                  @default(false)
-  approvalReason    String?
-  approvedAt        DateTime?
-  approvedById      String?
-  viewedAt          DateTime?
-  cancelledAt       DateTime?
-  cancelReason      String?
-  createdById       String?
-  updatedById       String?
-  createdAt         DateTime                 @default(now())
-  updatedAt         DateTime                 @updatedAt
-  items             GraphicQuoteItem[]
-  versions          GraphicQuoteVersion[]
-  approvals         GraphicApprovalRequest[]
-  orders            GraphicOrder[]
+  id                 String                   @id @default(cuid())
+  tenantId           String
+  tenant             Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  opportunityId      String?
+  opportunity        GraphicOpportunity?      @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  clientId           String?
+  responsibleId      String?
+  responsible        User?                    @relation(fields: [responsibleId], references: [id], onDelete: SetNull)
+  number             Int
+  version            Int                      @default(1)
+  shareToken         String?
+  status             String                   @default("DRAFT")
+  source             String                   @default("MANUAL")
+  validUntil         DateTime
+  paymentTerms       String?
+  notes              String?
+  shippingPostalCode String?
+  shippingAddress    String?
+  shippingNumber     String?
+  shippingComplement String?
+  shippingDistrict   String?
+  shippingCity       String?
+  shippingState      String?
+  subtotalCents      Int                      @default(0)
+  discountCents      Int                      @default(0)
+  urgencyCents       Int                      @default(0)
+  freightCents       Int                      @default(0)
+  installationCents  Int                      @default(0)
+  totalCostCents     Int                      @default(0)
+  totalPriceCents    Int                      @default(0)
+  minimumPriceCents  Int                      @default(0)
+  marginPercent      Float                    @default(0)
+  markupPercent      Float                    @default(0)
+  approvalRequired   Boolean                  @default(false)
+  approvalReason     String?
+  approvedAt         DateTime?
+  approvedById       String?
+  viewedAt           DateTime?
+  cancelledAt        DateTime?
+  cancelReason       String?
+  createdById        String?
+  updatedById        String?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  items              GraphicQuoteItem[]
+  versions           GraphicQuoteVersion[]
+  approvals          GraphicApprovalRequest[]
+  orders             GraphicOrder[]
 
   @@unique([tenantId, number, version])
   @@index([tenantId, status])
+  @@index([tenantId, source, status])
   @@index([tenantId, clientId])
   @@index([shareToken])
 }

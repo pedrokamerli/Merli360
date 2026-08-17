@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, Clock3, Factory, Loader2, PackageCheck, Play, RefreshCw } from "lucide-react";
+import { GraphicCatalogRequestsPanel } from "@/components/GraphicCatalogRequestsPanel";
 
 type Row = Record<string, any>;
-type OperationsTab = "production" | "delivery";
+type OperationsTab = "requests" | "production" | "delivery";
 
 const inputClass = "min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100";
 const date = (value?: string) => value ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeZone: "UTC" }).format(new Date(value)) : "Sem data";
@@ -67,6 +68,7 @@ export function GraphicOperationsWorkspaceV2() {
 
   const production = data?.productionOrders || [];
   const deliveries = data?.deliveries || [];
+  const catalogRequests = data?.catalogRequests || [];
   const orders = data?.orders || [];
   const openProduction = production.filter((item: Row) => !["COMPLETED", "CANCELLED"].includes(item.status));
   const completedProduction = production.filter((item: Row) => item.status === "COMPLETED");
@@ -79,12 +81,15 @@ export function GraphicOperationsWorkspaceV2() {
     </header>
 
     <nav className="surface-panel flex gap-2 overflow-x-auto p-2">
+      <button className={`flex items-center gap-2 rounded-md px-4 py-3 text-sm font-black ${tab === "requests" ? "bg-slate-950 text-white" : "text-slate-600 hover:bg-slate-100"}`} onClick={() => setTab("requests")} type="button"><CheckCircle2 size={17} />Novos orcamentos <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs">{catalogRequests.length}</span></button>
       <button className={`flex items-center gap-2 rounded-md px-4 py-3 text-sm font-black ${tab === "production" ? "bg-slate-950 text-white" : "text-slate-600 hover:bg-slate-100"}`} onClick={() => setTab("production")} type="button"><Factory size={17} />Producao <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs">{openProduction.length}</span></button>
       <button className={`flex items-center gap-2 rounded-md px-4 py-3 text-sm font-black ${tab === "delivery" ? "bg-slate-950 text-white" : "text-slate-600 hover:bg-slate-100"}`} onClick={() => setTab("delivery")} type="button"><PackageCheck size={17} />Expedicao <span className="rounded-full bg-white/15 px-2 py-0.5 text-xs">{openDeliveries.length}</span></button>
     </nav>
 
     {message ? <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{message}</p> : null}
     {loading ? <div className="surface-panel flex items-center gap-2 p-5 text-sm font-bold text-slate-600"><Loader2 className="animate-spin" size={18} />Carregando ordens...</div> : null}
+
+    {tab === "requests" && !loading ? <GraphicCatalogRequestsPanel requests={catalogRequests} compact /> : null}
 
     {tab === "production" && !loading ? <section className="space-y-4">
       <div className="grid gap-4 xl:grid-cols-2">{openProduction.map((item: Row) => <ProductionOrderCard key={item.id} item={item} order={orders.find((order: Row) => order.id === item.orderId)} busy={busyId === item.id} onAction={productionAction} />)}{!openProduction.length ? <div className="surface-panel p-8 text-center"><CheckCircle2 className="mx-auto text-emerald-600" size={28} /><p className="mt-3 font-black text-slate-950">Nenhuma ordem aguardando producao.</p></div> : null}</div>

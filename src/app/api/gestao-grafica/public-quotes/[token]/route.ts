@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 async function findQuote(token: string) {
   return (prisma as any).graphicQuote.findFirst({
-    where: { shareToken: token, status: { in: ["SENT", "VIEWED", "APPROVED"] } },
+    where: { shareToken: token, status: { in: ["PENDING_REVIEW", "SENT", "VIEWED", "APPROVED"] } },
     include: { items: true, tenant: true, orders: { include: { productionOrders: { include: { steps: { orderBy: { position: "asc" } } } }, deliveries: true } } }
   });
 }

@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { BookOpen, Check, CheckCircle2, Copy, ExternalLink, FileDown, FileText, Loader2, MessageCircle, Plus, Search, Send, X } from "lucide-react";
 import { GraphicCatalogShareDialog } from "@/components/GraphicCatalogShareDialog";
+import { GraphicCatalogRequestsPanel } from "@/components/GraphicCatalogRequestsPanel";
 import { MetricCard } from "@/components/MetricCard";
 
 type Row = Record<string, any>;
@@ -62,6 +63,7 @@ export function GraphicCommercialWorkspaceV2({ scope = "all", onBackToLeads }: {
   const orders = data?.orders || [];
   const products = (data?.products || []).filter((item: Row) => item.pricingReady);
   const catalogItems = data?.catalogItems || [];
+  const catalogRequests = data?.catalogRequests || [];
   const stages = data?.stages || [];
   const metrics = data?.metrics || {};
 
@@ -195,7 +197,7 @@ export function GraphicCommercialWorkspaceV2({ scope = "all", onBackToLeads }: {
     window.open(`https://wa.me/55${phone}?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
   }
 
-  const tabs: Array<[Tab, string, number]> = [["today", "Hoje", overdue.length + dueToday.length], ["pipeline", "Pipeline", opportunities.length], ["clients", "Clientes", clients.length], ["history", "Orcamentos e pedidos", quotes.length + orders.length]];
+  const tabs: Array<[Tab, string, number]> = [["today", "Hoje", overdue.length + dueToday.length + catalogRequests.length], ["pipeline", "Pipeline", opportunities.length], ["clients", "Clientes", clients.length], ["history", "Orcamentos e pedidos", quotes.length + orders.length]];
   const ready = Boolean(quote.catalogVariantId || quote.productId || quote.negotiatedPrice);
   const selectedCatalog = catalogItems.find((item: Row) => item.id === quote.catalogItemId);
   const selectedVariant = itemVariant(catalogItems, quote);
@@ -206,7 +208,7 @@ export function GraphicCommercialWorkspaceV2({ scope = "all", onBackToLeads }: {
     {message ? <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800">{message}</div> : null}
     {loading ? <div className="surface-panel flex items-center gap-2 p-5 text-sm font-bold text-slate-600"><Loader2 className="animate-spin" size={18} />Carregando CRM...</div> : null}
 
-    {tab === "today" ? <><section className="grid grid-cols-2 gap-3 xl:grid-cols-6"><MetricCard label="Retornos atrasados" value={String(overdue.length)} hint="prioridade do dia" tone={overdue.length ? "danger" : "good"} /><MetricCard label="Retornos hoje" value={String(dueToday.length)} hint="contatos agendados" tone={dueToday.length ? "warn" : "good"} /><MetricCard label="Oportunidades" value={String(metrics.opportunitiesOpen || 0)} hint="em andamento" /><MetricCard label="Propostas aguardando" value={String(activeQuotes.filter((item: Row) => ["SENT", "VIEWED"].includes(item.status)).length)} hint="com o cliente" /><MetricCard label="Vendas no periodo" value={brl(metrics.soldCents || 0)} hint="pedidos aprovados" /><MetricCard label="Conversao" value={metrics.conversionPercent === null || metrics.conversionPercent === undefined ? "-" : `${metrics.conversionPercent}%`} hint="quando ha base" /></section><ActionList title="Retornos que precisam de voce" items={[...overdue, ...dueToday]} onWhatsapp={whatsapp} onQuote={(item) => { setQuote((current) => ({ ...current, opportunityId: item.id, clientId: item.clientId, description: item.productInterest || item.title })); setDialog("quote"); }} /></> : null}
+    {tab === "today" ? <><section className="grid grid-cols-2 gap-3 xl:grid-cols-6"><MetricCard label="Retornos atrasados" value={String(overdue.length)} hint="prioridade do dia" tone={overdue.length ? "danger" : "good"} /><MetricCard label="Retornos hoje" value={String(dueToday.length)} hint="contatos agendados" tone={dueToday.length ? "warn" : "good"} /><MetricCard label="Oportunidades" value={String(metrics.opportunitiesOpen || 0)} hint="em andamento" /><MetricCard label="Propostas aguardando" value={String(activeQuotes.filter((item: Row) => ["SENT", "VIEWED"].includes(item.status)).length)} hint="com o cliente" /><MetricCard label="Vendas no periodo" value={brl(metrics.soldCents || 0)} hint="pedidos aprovados" /><MetricCard label="Conversao" value={metrics.conversionPercent === null || metrics.conversionPercent === undefined ? "-" : `${metrics.conversionPercent}%`} hint="quando ha base" /></section>{data?.canReviewCatalogRequests ? <GraphicCatalogRequestsPanel requests={catalogRequests} /> : null}<ActionList title="Retornos que precisam de voce" items={[...overdue, ...dueToday]} onWhatsapp={whatsapp} onQuote={(item) => { setQuote((current) => ({ ...current, opportunityId: item.id, clientId: item.clientId, description: item.productInterest || item.title })); setDialog("quote"); }} /></> : null}
 
     {tab === "pipeline" ? <section className="surface-panel p-4"><div className="mb-4"><h2 className="font-black text-slate-950">Pipeline comercial</h2><p className="text-sm font-semibold text-slate-500">Cada card abre a jornada completa do cliente.</p></div><div className="flex gap-3 overflow-x-auto pb-2">{stages.map((stage: Row) => <div key={stage.id || stage.name} className="w-72 shrink-0 rounded-lg bg-slate-50 p-3"><div className="mb-3 flex items-center justify-between"><h3 className="text-sm font-black text-slate-800">{stage.name}</h3><span className="rounded-full bg-white px-2 py-1 text-xs font-black text-slate-600">{opportunities.filter((item: Row) => item.status === stage.name).length}</span></div><div className="space-y-2">{opportunities.filter((item: Row) => item.status === stage.name).map((item: Row) => <a key={item.id} href={`/gestao-grafica/clientes/${item.clientId}`} className="block rounded-lg border border-slate-200 bg-white p-3 hover:border-emerald-300"><p className="font-black text-slate-950">{item.title}</p><p className="mt-1 text-xs font-semibold text-slate-500">{item.productInterest || "Necessidade a definir"}</p><p className="mt-2 text-xs font-black text-emerald-700">Retorno: {shortDate(item.nextFollowUp)}</p></a>)}{!opportunities.some((item: Row) => item.status === stage.name) ? <p className="rounded-md bg-white p-3 text-xs font-bold text-slate-500">Sem oportunidades.</p> : null}</div></div>)}</div></section> : null}
 

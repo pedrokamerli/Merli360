@@ -29,6 +29,8 @@ test("restringe acoes criticas por perfil operacional", () => {
   assert.equal(hasGraphicPermission("GRAPHIC_OPERATIONS", "production:update"), true);
   assert.equal(hasGraphicPermission("GRAPHIC_OPERATIONS", "quote:create"), false);
   assert.equal(hasGraphicPermission("GRAPHIC_OPERATIONS", "opportunity:write"), false);
+  assert.equal(hasGraphicPermission("GRAPHIC_OPERATIONS", "catalog-request:review"), true);
+  assert.equal(hasGraphicPermission("GRAPHIC_SALES", "catalog-request:review"), true);
   assert.equal(hasGraphicPermission("GRAPHIC_OPERATIONS", "receivable:update"), false);
   assert.equal(hasGraphicPermission("GRAPHIC_ADMIN", "receivable:update"), true);
   assert.equal(hasGraphicPermission("GRAPHIC_ADMIN", "production:update"), false);

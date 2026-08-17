@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     const canManageSettings = hasGraphicPermission(graphicRole, "settings:manage");
     const canViewProduction = hasGraphicPermission(graphicRole, "production:update") || graphicRole === "GRAPHIC_OWNER";
     const canViewInventory = hasGraphicPermission(graphicRole, "inventory:view") || canManageSettings;
+    const canReviewCatalogRequests = hasGraphicPermission(graphicRole, "catalog-request:review");
     const mineOnly = request.nextUrl.searchParams.get("scope") === "mine" && graphicRole === "GRAPHIC_OPERATIONS";
     await ensureGraphicDefaults(user.tenantId);
     const db = prisma as any;
@@ -90,7 +91,7 @@ export async function GET(request: NextRequest) {
     const productionRows = productionOrders.map((item: any) => ({ ...item, attachments: attachmentsByProduction[item.id] || [] }));
     const deliveryRows = deliveries.map((item: any) => ({ ...item, attachments: attachmentsByDelivery[item.id] || [] }));
     const clientIds = [...new Set([...opportunities.map((item: any) => item.clientId), ...quotes.map((item: any) => item.clientId), ...orders.map((item: any) => item.clientId)].filter(Boolean))];
-    const clients = clientIds.length ? await db.client.findMany({ where: { tenantId: user.tenantId, id: { in: clientIds } }, select: { id: true, name: true, segment: true } }) : [];
+    const clients = clientIds.length ? await db.client.findMany({ where: { tenantId: user.tenantId, id: { in: clientIds } }, select: { id: true, name: true, segment: true, phone: true, whatsapp: true, email: true, address: true, addressNumber: true, district: true, city: true, state: true, zipCode: true } }) : [];
     const clientsById = new Map<string, any>(clients.map((item: any) => [item.id, item]));
     const opportunityRows = opportunities.map((item: any) => ({ ...item, ownerName: item.owner?.name || item.owner?.username || "Sem responsavel" }));
     const quoteRows = quotes.map((item: any) => ({ ...item, client: clientsById.get(item.clientId) || null, productName: item.items?.[0]?.catalogVariant?.catalogItem?.name || item.items?.[0]?.product?.name || item.items?.[0]?.description || "Produto a definir" }));
@@ -148,12 +149,14 @@ export async function GET(request: NextRequest) {
       role: graphicRole,
       canViewFinancial,
       canManageSettings,
+      canReviewCatalogRequests,
       metrics: dashboard.metrics,
       metricNotes: dashboard.metricNotes,
       qualityItems,
       groups: dashboard.groups,
       opportunities: hasGraphicPermission(graphicRole, "opportunity:write") || graphicRole === "GRAPHIC_OWNER" ? opportunityRows : [],
       quotes: hasGraphicPermission(graphicRole, "quote:create") || canViewFinancial ? quoteRows : [],
+      catalogRequests: canReviewCatalogRequests ? quoteRows.filter((item: any) => item.source === "PUBLIC_CATALOG" && item.status === "PENDING_REVIEW") : [],
       orders: hasGraphicPermission(graphicRole, "quote:create") || canViewFinancial || canViewProduction ? orderRows : [],
       productionOrders: canViewProduction ? productionRows : [],
       deliveries: canViewProduction ? deliveryRows : [],

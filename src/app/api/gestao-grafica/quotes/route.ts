@@ -144,11 +144,59 @@ export async function PUT(request: NextRequest) {
     const user = await requireApiUser();
     const body = await request.json();
     const action = String(body.action || "approve");
-    if (action === "approve-commercial") await assertGraphicPermission(user, "quote:approve");
+    if (action === "approve-catalog-request") await assertGraphicPermission(user, "catalog-request:review");
+    else if (action === "approve-commercial") await assertGraphicPermission(user, "quote:approve");
     else await assertGraphicCommercialPermission(user, "quote:create");
     const id = String(body.id || "");
     if (!id) return NextResponse.json({ error: "Orcamento obrigatorio." }, { status: 400 });
     const db = prisma as any;
+
+    if (action === "approve-catalog-request") {
+      const freightCents = Math.max(0, Math.min(10_000_000, Math.round(Number(body.freightCents || 0))));
+      const result = await db.$transaction(async (tx: any) => {
+        const quote = await tx.graphicQuote.findFirst({ where: { id, tenantId: user.tenantId }, include: { approvals: { where: { status: "PENDING" } }, versions: true, items: true } });
+        if (!quote) throw new Error("QUOTE_NOT_FOUND");
+        if (quote.source !== "PUBLIC_CATALOG" || quote.status !== "PENDING_REVIEW") throw new Error("CATALOG_REQUEST_NOT_PENDING");
+        const productCostCents = Math.max(0, quote.totalCostCents - quote.freightCents);
+        const productPriceCents = Math.max(0, quote.totalPriceCents - quote.freightCents);
+        const totalCostCents = productCostCents + freightCents;
+        const totalPriceCents = productPriceCents + freightCents;
+        const marginPercent = totalPriceCents ? Math.round(((totalPriceCents - totalCostCents) / totalPriceCents) * 10000) / 100 : 0;
+        const updated = await tx.graphicQuote.update({
+          where: { id },
+          data: {
+            status: "SENT",
+            responsibleId: user.id,
+            freightCents,
+            totalCostCents,
+            totalPriceCents,
+            minimumPriceCents: Math.max(0, quote.minimumPriceCents - quote.freightCents) + freightCents,
+            marginPercent,
+            markupPercent: totalCostCents ? Math.round(((totalPriceCents - totalCostCents) / totalCostCents) * 10000) / 100 : 0,
+            approvalRequired: false,
+            approvalReason: null,
+            updatedById: user.id
+          }
+        });
+        await tx.graphicApprovalRequest.updateMany({
+          where: { tenantId: user.tenantId, quoteId: id, status: "PENDING" },
+          data: { status: "APPROVED", decision: `Solicitacao revisada. Frete: ${freightCents}.`, decidedById: user.id, decidedAt: new Date(), updatedById: user.id }
+        });
+        await tx.graphicQuoteVersion.create({
+          data: { tenantId: user.tenantId, quoteId: id, version: nextQuoteVersion(quote.versions), snapshot: JSON.stringify({ action, freightCents, before: quote, items: quote.items, after: updated }), createdById: user.id, updatedById: user.id }
+        });
+        if (quote.opportunityId) {
+          const nextFollowUp = new Date();
+          nextFollowUp.setDate(nextFollowUp.getDate() + 1);
+          await tx.graphicOpportunity.update({ where: { id: quote.opportunityId }, data: { ownerId: user.id, nextAction: "Confirmar aprovacao do orcamento com o cliente", nextFollowUp, qualityAlert: null, updatedById: user.id } });
+          await tx.graphicTask.create({ data: { tenantId: user.tenantId, opportunityId: quote.opportunityId, assignedToId: user.id, title: `Confirmar orcamento #${quote.number} com o cliente`, dueDate: nextFollowUp, createdById: user.id, updatedById: user.id } });
+          await tx.graphicActivity.create({ data: { tenantId: user.tenantId, opportunityId: quote.opportunityId, userId: user.id, type: "CATALOG_REQUEST_APPROVED", channel: "CATALOGO_PUBLICO", result: `Orcamento #${quote.number} revisado e liberado para o cliente.`, createdById: user.id, updatedById: user.id } });
+        }
+        return updated;
+      });
+      await audit({ tenantId: user.tenantId, userId: user.id, action: "graphic_approve_catalog_request", entity: "GraphicQuote", entityId: id, request, metadata: { freightCents } });
+      return NextResponse.json({ item: result, publicPath: `/public/orcamento/${result.shareToken}` });
+    }
 
     if (["send", "refuse", "cancel"].includes(action)) {
       const statusMap: Record<string, string> = { send: "SENT", refuse: "REFUSED", cancel: "CANCELLED" };
@@ -294,7 +342,8 @@ export async function PUT(request: NextRequest) {
       QUOTE_NOT_SENT: "Envie o orcamento ao cliente antes de aprovar.",
       QUOTE_WITHOUT_ITEMS: "Inclua pelo menos um item antes de aprovar.",
       QUOTE_EXPIRED: "Orcamento vencido. Gere uma nova versao antes de aprovar.",
-      QUOTE_COMMERCIAL_APPROVAL_PENDING: "Aprove a excecao comercial antes de gerar pedido."
+      QUOTE_COMMERCIAL_APPROVAL_PENDING: "Aprove a excecao comercial antes de gerar pedido.",
+      CATALOG_REQUEST_NOT_PENDING: "Esta solicitacao do catalogo ja foi revisada.",
     };
     const status = error?.message === "UNAUTHORIZED" ? 401 : error?.message === "FORBIDDEN_GRAPHIC_PERMISSION" || error?.message === "FORBIDDEN_MODULE" ? 403 : 400;
     return NextResponse.json({ error: status === 403 ? "Seu perfil nao permite alterar este orcamento." : messages[error?.message] || String(error?.message || "Nao foi possivel alterar o orcamento."), detail: process.env.NODE_ENV === "production" ? undefined : String(error?.message || error) }, { status });

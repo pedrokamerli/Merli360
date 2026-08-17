@@ -24,6 +24,7 @@ function publicItem(item: any, includeCosts: boolean) {
     description: item.description,
     imageUrl: item.imageUrl,
     imagePosition: item.imagePosition,
+    imageOriginalName: includeCosts ? item.imageOriginalName : undefined,
     status: item.status,
     featured: item.featured,
     sortOrder: item.sortOrder,

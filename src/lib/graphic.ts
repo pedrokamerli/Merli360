@@ -13,6 +13,7 @@ export type GraphicRole = typeof graphicRoles[number];
 
 export type GraphicPermission =
   | "catalog:manage"
+  | "catalog-request:review"
   | "settings:manage"
   | "opportunity:write"
   | "quote:create"
@@ -27,10 +28,10 @@ export type GraphicPermission =
   | "purchase:manage";
 
 const rolePermissions: Record<GraphicRole, GraphicPermission[]> = {
-  GRAPHIC_OWNER: ["catalog:manage", "settings:manage", "opportunity:write", "quote:create", "quote:approve", "cost:view", "production:update", "receivable:update", "post-sale:update", "report:view", "inventory:view", "inventory:manage", "purchase:manage"],
-  GRAPHIC_ADMIN: ["catalog:manage", "settings:manage", "quote:approve", "cost:view", "receivable:update", "report:view", "inventory:view", "inventory:manage", "purchase:manage"],
-  GRAPHIC_SALES: ["opportunity:write", "quote:create", "post-sale:update"],
-  GRAPHIC_OPERATIONS: ["production:update", "inventory:view"],
+  GRAPHIC_OWNER: ["catalog:manage", "catalog-request:review", "settings:manage", "opportunity:write", "quote:create", "quote:approve", "cost:view", "production:update", "receivable:update", "post-sale:update", "report:view", "inventory:view", "inventory:manage", "purchase:manage"],
+  GRAPHIC_ADMIN: ["catalog:manage", "catalog-request:review", "settings:manage", "quote:approve", "cost:view", "receivable:update", "report:view", "inventory:view", "inventory:manage", "purchase:manage"],
+  GRAPHIC_SALES: ["catalog-request:review", "opportunity:write", "quote:create", "post-sale:update"],
+  GRAPHIC_OPERATIONS: ["catalog-request:review", "production:update", "inventory:view"],
   GRAPHIC_ADVISOR: ["report:view", "inventory:view"]
 };
 

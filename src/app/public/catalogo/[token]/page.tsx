@@ -24,5 +24,5 @@ export default async function PublicCatalogPage({ params }: { params: Promise<{ 
       }
     }
   });
-  return <GraphicPublicCatalog tenantName={setting.tenant?.brandName || setting.tenant?.name || "Studium"} items={JSON.parse(JSON.stringify(items))} />;
+  return <GraphicPublicCatalog tenantName={setting.tenant?.brandName || setting.tenant?.name || "Studium"} token={token} items={JSON.parse(JSON.stringify(items))} />;
 }
