@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MessageCircle } from "lucide-react";
+import { FileText, Loader2, MessageCircle } from "lucide-react";
 
 type Lead = Record<string, any>;
 type Stage = { id: string; name: string };
@@ -32,6 +32,7 @@ export function CrmLeadDetailPanel({ lead, initialMode, stages, users, currentUs
   const [activities, setActivities] = useState<any[]>(lead.activities || []);
   const [form, setForm] = useState<Lead>({ ...lead, nextFollowUp: lead.nextFollowUp?.slice(0, 10) || "", expectedCloseDate: lead.expectedCloseDate?.slice(0, 10) || "" });
   const [savingAction, setSavingAction] = useState(false);
+  const [startingQuote, setStartingQuote] = useState(false);
   const [actionMessage, setActionMessage] = useState("");
   const [operation, setOperation] = useState({
     type: "Contato realizado",
@@ -90,6 +91,19 @@ export function CrmLeadDetailPanel({ lead, initialMode, stages, users, currentUs
     onChanged?.();
   }
 
+  async function startGraphicQuote() {
+    setStartingQuote(true);
+    setActionMessage("");
+    const response = await fetch(`/api/crm/leads/${lead.id}/quote-handoff`, { method: "POST" });
+    const body = await response.json();
+    if (!response.ok) {
+      setStartingQuote(false);
+      setActionMessage(body.error || "Nao foi possivel preparar o orcamento.");
+      return;
+    }
+    window.location.assign(`/crm?area=grafica&clientId=${encodeURIComponent(body.client.id)}&opportunityId=${encodeURIComponent(body.opportunity.id)}`);
+  }
+
   return <div className="fixed inset-0 z-50 bg-slate-950/40" onClick={onClose}>
     <aside className="ml-auto h-full w-full max-w-xl overflow-y-auto bg-white p-5" onClick={(event) => event.stopPropagation()}>
       <div className="flex items-start justify-between gap-4"><div><p className="eyebrow">Lead</p><h2 className="text-2xl font-black">{localLead.companyName || localLead.name}</h2></div><button className="icon-button" onClick={onClose} aria-label="Fechar">x</button></div>
@@ -107,6 +121,7 @@ export function CrmLeadDetailPanel({ lead, initialMode, stages, users, currentUs
       </div></section>
       {mode === "operation" ? <section className="mt-5 space-y-4">
         <div className="grid gap-3 sm:grid-cols-4"><div className="rounded-xl border border-slate-200 p-4"><p className="text-xs font-black uppercase text-slate-500">Etapa</p><p className="mt-1 font-black text-slate-950">{localLead.status || "Novo"}</p></div><div className="rounded-xl border border-slate-200 p-4"><p className="text-xs font-black uppercase text-slate-500">Responsavel</p><p className="mt-1 font-black text-slate-950">{localLead.ownerName || "Sem responsavel"}</p></div><div className="rounded-xl border border-slate-200 p-4"><p className="text-xs font-black uppercase text-slate-500">Tentativas</p><p className="mt-1 font-black text-slate-950">{localLead.attempts || 0}</p></div><div className="rounded-xl border border-slate-200 p-4"><p className="text-xs font-black uppercase text-slate-500">Ultimo contato</p><p className="mt-1 font-black text-slate-950">{when(localLead.lastContactAt) || "Sem contato"}</p></div></div>
+        <section className="rounded-xl border border-violet-200 bg-violet-50 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-black uppercase text-violet-700">Proximo passo comercial</p><h3 className="mt-1 font-black text-slate-950">Criar orcamento da grafica</h3><p className="mt-1 text-sm font-semibold text-slate-600">O cadastro deste lead sera aproveitado no pedido.</p></div><button className="primary-action px-4 py-3 disabled:opacity-60" disabled={startingQuote} onClick={startGraphicQuote}>{startingQuote ? <Loader2 className="animate-spin" size={16} /> : <FileText size={16} />}{startingQuote ? "Preparando..." : "Criar orcamento"}</button></div></section>
         <div className="rounded-2xl border border-slate-200 p-4"><div className="flex flex-wrap gap-2">{Object.keys(actionPresets).map((item) => <button key={item} className={`rounded-xl px-3 py-2 text-xs font-black ${operation.type === actionPresets[item].type && operation.result === actionPresets[item].result ? "bg-violet-600 text-white" : "bg-slate-100 text-slate-700"}`} onClick={() => { const preset = actionPresets[item]; updateOperation({ type: preset.type, result: preset.result, leadStatus: preset.status, nextAction: preset.nextAction, closeChance: preset.chance ?? operation.closeChance }); }}>{item}</button>)}</div><div className="mt-4 grid gap-3 sm:grid-cols-2"><label><span className="text-xs font-black uppercase">Canal</span><select className="form-control" value={operation.channel} onChange={(event) => updateOperation({ channel: event.target.value })}><option>WhatsApp</option><option>Ligacao</option><option>Email</option><option>Instagram</option><option>Visita</option><option>Outro</option></select></label><label><span className="text-xs font-black uppercase">Resultado</span><select className="form-control" value={operation.result} onChange={(event) => updateOperation({ result: event.target.value })}><option>Primeira abordagem feita</option><option>Sem resposta</option><option>Respondeu</option><option>Interessado</option><option>Reuniao marcada</option><option>Proposta enviada</option><option>Pediu retorno depois</option><option>Sem interesse</option><option>Contato invalido</option></select></label><label><span className="text-xs font-black uppercase">Etapa no funil</span><select className="form-control" value={operation.leadStatus} onChange={(event) => updateOperation({ leadStatus: event.target.value })}>{stages.map((stage) => <option key={stage.id}>{stage.name}</option>)}</select></label><label><span className="text-xs font-black uppercase">Responsavel</span><select className="form-control" value={operation.ownerName} onChange={(event) => updateOperation({ ownerName: event.target.value })}><option value="">Sem responsavel</option>{users.map((user) => <option key={user.id} value={user.name || user.username}>{user.name || user.username}</option>)}</select></label><label><span className="text-xs font-black uppercase">Proxima acao</span><input className="form-control" value={operation.nextAction} onChange={(event) => updateOperation({ nextAction: event.target.value })}/></label><label><span className="text-xs font-black uppercase">Data do follow-up</span><input className="form-control" type="date" value={operation.nextActionDate} onChange={(event) => updateOperation({ nextActionDate: event.target.value })}/></label><label><span className="text-xs font-black uppercase">Valor potencial</span><input className="form-control" type="number" value={operation.proposedValue} onChange={(event) => updateOperation({ proposedValue: Number(event.target.value) })}/></label><label><span className="text-xs font-black uppercase">Chance (%)</span><input className="form-control" type="number" value={operation.closeChance} onChange={(event) => updateOperation({ closeChance: Number(event.target.value) })}/></label><label className="sm:col-span-2"><span className="text-xs font-black uppercase">Anotacao da conversa</span><textarea className="form-control min-h-24" value={operation.note} onChange={(event) => updateOperation({ note: event.target.value })} placeholder="Ex: falei com a recepcao, pediu para retornar amanha de manha."/></label></div><div className="mt-4 flex flex-wrap items-center justify-between gap-3"><button className="secondary-action px-4 py-3" onClick={() => setMode("edit")}>Editar dados cadastrais</button><button disabled={savingAction} className="primary-action disabled:opacity-60" onClick={registerOperation}>{savingAction ? "Registrando..." : "Registrar acao no CRM"}</button></div>{actionMessage ? <p className="mt-3 rounded-xl bg-violet-50 p-3 text-sm font-bold text-violet-800">{actionMessage}</p> : null}</div>
       </section> : null}
       {mode === "edit" ? <>

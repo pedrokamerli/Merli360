@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { AlertTriangle, Banknote, CheckCircle2, ClipboardList, Download, Factory, FileText, Loader2, PackageCheck, Plus, RefreshCw, Search, Settings, Star, Trash2, Upload } from "lucide-react";
 import { MetricCard } from "@/components/MetricCard";
 
@@ -102,6 +103,7 @@ function operationLane(item: AnyRow, deliveries: AnyRow[]) {
 }
 
 export function GestaoGraficaWorkspace({ workspace, scope = "all" }: { workspace?: GraphicWorkspace; scope?: "all" | "mine" } = {}) {
+  const searchParams = useSearchParams();
   const [data, setData] = useState<AnyRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -115,6 +117,7 @@ export function GestaoGraficaWorkspace({ workspace, scope = "all" }: { workspace
   const initialTab: GraphicTab = workspace === "operations" ? "production" : workspace === "administrative" ? "finance" : workspace === "management" ? "dashboard" : workspace === "settings" ? "base" : "commercial";
   const [activeTab, setActiveTab] = useState<GraphicTab>(initialTab);
   const [settingsSection, setSettingsSection] = useState<"catalog" | "pricing" | "team" | "import">("catalog");
+  const quoteHandoffRef = useRef("");
 
   async function load() {
     setLoading(true);
@@ -174,6 +177,19 @@ export function GestaoGraficaWorkspace({ workspace, scope = "all" }: { workspace
   const operationalSettings = data?.operationalSettings || {};
   const activeStages = stages.length ? stages : [{ name: "OPEN" }, { name: "QUOTE_CREATED" }, { name: "WON" }, { name: "LOST" }];
   const pipelineStages = activeStages.map((stage: AnyRow) => ({ ...stage, items: (data?.opportunities || []).filter((item: AnyRow) => item.status === stage.name) }));
+
+  useEffect(() => {
+    const clientId = searchParams.get("clientId") || "";
+    const opportunityId = searchParams.get("opportunityId") || "";
+    const handoffKey = `${clientId}:${opportunityId}`;
+    if (!data || !clientId || !opportunityId || quoteHandoffRef.current === handoffKey) return;
+    const opportunity = (data.opportunities || []).find((item: AnyRow) => item.id === opportunityId && item.clientId === clientId);
+    if (!opportunity) return;
+    quoteHandoffRef.current = handoffKey;
+    setActiveTab("commercial");
+    setQuoteForm((current) => ({ ...current, clientId, opportunityId, description: opportunity.productInterest || opportunity.title || current.description }));
+    setMessage("Cliente vinculado. Complete o item e gere o orcamento.");
+  }, [data, searchParams]);
   const allTabs: GraphicTabMeta[] = [
     { key: "dashboard", label: "Painel", count: String(metrics.qualityAlerts || 0), title: "Painel operacional", description: "Indicadores, alertas e relatorios para decidir o que atacar primeiro.", action: "Ver indicadores" },
     { key: "commercial", label: "Comercial", count: String(openOpportunities.length), title: "Comercial", description: "Cadastre clientes de qualquer canal, crie oportunidades, gere orcamentos e mova o funil.", action: "Atender cliente" },

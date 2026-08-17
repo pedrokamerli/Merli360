@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { BarChart3, CalendarClock, CheckCircle2, GripVertical, MessageCircle, Plus, Search, Upload, Users } from "lucide-react";
 import { CrmLeadDetailPanel } from "@/components/CrmLeadDetailPanel";
 import { CrmToday } from "@/components/CrmToday";
-import { GraphicCommercialWorkspaceV2 } from "@/components/GraphicCommercialWorkspaceV2";
+import { GestaoGraficaWorkspace } from "@/components/GestaoGraficaWorkspace";
 
 type Lead = Record<string, any>;
 type Stage = { id: string; name: string; position: number; color: string; defaultProbability: number; kind: string; active?: boolean };
@@ -120,7 +120,7 @@ export function CrmCommandCenter() {
     {tab === "dashboard" ? <DashboardV2 metrics={metrics} /> : null}
     {tab === "leads" ? <LeadsListV2 data={data} search={search} setSearch={setSearch} filter={filter} setFilter={setFilter} cities={cities} segments={segments} selectedIds={selectedIds} setSelectedIds={setSelectedIds} onLead={openLead} onWhatsApp={openWhatsApp} onBulk={bulk} /> : null}
     {tab === "pipeline" ? <Pipeline leads={pipelineItems} stages={data.stages} onLead={openLead} onMove={updateLead} /> : null}
-    {tab === "graphic" ? <GraphicCommercialWorkspaceV2 onBackToLeads={() => { window.history.replaceState({}, "", "/crm"); setTab("today"); }} /> : null}
+    {tab === "graphic" ? <><div className="flex justify-end"><button className="secondary-action px-4 py-2" onClick={() => { window.history.replaceState({}, "", "/crm"); setTab("today"); }}>Voltar ao CRM</button></div><GestaoGraficaWorkspace workspace="commercial" /></> : null}
     {selected ? <CrmLeadDetailPanel lead={selected} initialMode={selectedMode} stages={data.stages} users={data.users} currentUserId={data.currentUserId} currentUserName={data.currentUserName} onClose={() => setSelected(null)} onSave={updateLead} onWhatsApp={openWhatsApp} onChanged={load} /> : null}
   </div>;
 }

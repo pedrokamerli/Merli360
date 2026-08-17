@@ -29,17 +29,13 @@ async function main() {
     const nextFollowUp = new Date(Date.now() + 86_400_000).toISOString();
     const validUntil = new Date(Date.now() + 7 * 86_400_000).toISOString();
 
-    const opportunity = await request("/api/gestao-grafica/opportunities", token, {
-      clientName: "Cliente API",
-      phone: "14999990000",
-      title: "Banner de verificacao",
-      productInterest: "Banner",
-      nextAction: "Enviar proposta",
-      nextFollowUp
-    });
+    const lead = await (prisma as any).lead.create({ data: { tenantId: tenant.id, name: "Cliente API", companyName: "Cliente API", contact: "14999990000", normalizedPhone: "14999990000", email: "cliente-api@example.com", city: "Bauru", state: "SP", segment: "Banner", status: "Qualificado" } });
+    const opportunity = await request(`/api/crm/leads/${lead.id}/quote-handoff`, token);
+    assert.equal(opportunity.client.name, "Cliente API", "O handoff deve reaproveitar o cadastro do lead.");
+    assert.equal(opportunity.opportunity.leadId, lead.id, "A oportunidade deve manter o vinculo com o lead de origem.");
     const quote = await request("/api/gestao-grafica/quotes", token, {
       clientId: opportunity.client.id,
-      opportunityId: opportunity.item.id,
+      opportunityId: opportunity.opportunity.id,
       validUntil,
       paymentTerms: "50% na aprovacao e 50% na entrega",
       items: [{ description: "Banner de verificacao", quantity: 2, negotiatedPrice: "120", deadlineDays: 4 }]

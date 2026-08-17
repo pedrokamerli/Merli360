@@ -30,7 +30,7 @@ export default async function Page({ params }: { params: Promise<{ workspace: st
   if (!hasGraphicAccess(user)) redirect("/");
   const role = await getGraphicRole(user);
   if (!hasGraphicWorkspaceAccess(role, resolvedWorkspace)) redirect("/gestao-grafica");
-  if (resolvedWorkspace === "commercial") redirect("/crm?area=grafica");
+  if (resolvedWorkspace === "commercial") return <GestaoGraficaWorkspace workspace="commercial" scope="all" />;
   if (resolvedWorkspace === "administrative") return <GraphicAdministrativeWorkspaceV2 />;
   if (resolvedWorkspace === "sales") return <GraphicCommercialWorkspaceV2 scope="mine" />;
   return <GestaoGraficaWorkspace workspace={resolvedWorkspace} scope="all" />;
