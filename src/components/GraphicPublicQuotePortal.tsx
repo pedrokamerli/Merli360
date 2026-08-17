@@ -43,6 +43,7 @@ function AttachmentList({ items, empty }: { items: Row[]; empty: string }) {
 export function GraphicPublicQuotePortal({ token, quote }: { token: string; quote: Row }) {
   const [busyAction, setBusyAction] = useState("");
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<"success" | "error">("success");
   const [confirmingApproval, setConfirmingApproval] = useState(false);
   const order = quote.orders?.[0];
   const production = order?.productionOrders?.[0];
@@ -57,7 +58,8 @@ export function GraphicPublicQuotePortal({ token, quote }: { token: string; quot
   const finalArtworkApproved = Boolean(production?.events?.some((item: Row) => item.action === "FINAL_ARTWORK_APPROVED" && new Date(item.createdAt).getTime() >= Math.max(latestFinalAt, latestCustomerAt)));
   const delivered = ["DELIVERED", "ACCEPTED"].includes(delivery?.status);
   const pendingReview = quote.status === "PENDING_REVIEW";
-  const canApprove = ["SENT", "VIEWED"].includes(quote.status);
+  const commercialPending = Boolean(quote.approvalRequired);
+  const canApprove = ["SENT", "VIEWED"].includes(quote.status) && !commercialPending;
   const canUploadArtwork = Boolean(order && ["PENDING", "BLOCKED"].includes(production?.status));
   const orderMessage = delivered ? "Pedido entregue. Obrigado por acompanhar com a gente." : production?.status === "COMPLETED" ? "Producao concluida. A equipe esta preparando a expedicao." : production?.status === "IN_PROGRESS" ? "Seu pedido esta em producao. Acompanhe cada etapa abaixo." : finalArtworkApproved ? "Arte final aprovada. O pedido esta pronto para a conferencia da producao." : "Envie seus arquivos e acompanhe a preparacao da arte final.";
 
@@ -66,7 +68,10 @@ export function GraphicPublicQuotePortal({ token, quote }: { token: string; quot
     const response = await fetch(`/api/gestao-grafica/public-quotes/${token}?action=approve`, { method: "POST" });
     const body = await response.json();
     setBusyAction("");
-    if (!response.ok) return setMessage(body.error || "Nao foi possivel aprovar agora.");
+    if (!response.ok) {
+      setMessageTone("error");
+      return setMessage(body.error || "Nao foi possivel aprovar agora.");
+    }
     setConfirmingApproval(false);
     window.location.reload();
   }
@@ -76,7 +81,10 @@ export function GraphicPublicQuotePortal({ token, quote }: { token: string; quot
     const formElement = event.currentTarget;
     const input = formElement.elements.namedItem("files") as HTMLInputElement | null;
     const files = Array.from(input?.files || []);
-    if (!files.length) return setMessage("Selecione pelo menos um arquivo para enviar.");
+    if (!files.length) {
+      setMessageTone("error");
+      return setMessage("Selecione pelo menos um arquivo para enviar.");
+    }
     setBusyAction("upload");
     setMessage("");
     let sent = 0;
@@ -87,10 +95,12 @@ export function GraphicPublicQuotePortal({ token, quote }: { token: string; quot
       const body = await response.json();
       if (!response.ok) {
         setBusyAction("");
+        setMessageTone("error");
         return setMessage(`${file.name}: ${body.error || "nao foi possivel enviar"}`);
       }
       sent += 1;
     }
+    setMessageTone("success");
     setMessage(`${sent} arquivo(s) recebido(s). A producao ja pode visualizar.`);
     formElement.reset();
     window.setTimeout(() => window.location.reload(), 700);
@@ -102,7 +112,11 @@ export function GraphicPublicQuotePortal({ token, quote }: { token: string; quot
     const response = await fetch(`/api/gestao-grafica/public-quotes/${token}?action=approve-final-artwork`, { method: "POST" });
     const body = await response.json();
     setBusyAction("");
-    if (!response.ok) return setMessage(body.error || "Nao foi possivel aprovar a arte final.");
+    if (!response.ok) {
+      setMessageTone("error");
+      return setMessage(body.error || "Nao foi possivel aprovar a arte final.");
+    }
+    setMessageTone("success");
     setMessage("Arte final aprovada. A equipe de producao foi avisada.");
     window.setTimeout(() => window.location.reload(), 700);
   }
@@ -110,11 +124,11 @@ export function GraphicPublicQuotePortal({ token, quote }: { token: string; quot
   return <main className="mx-auto max-w-4xl space-y-4 px-4 py-8">
     <header className="surface-panel p-5"><p className="eyebrow">Acompanhamento do pedido</p><div className="mt-1 flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-2xl font-black text-slate-950">{order ? `Pedido #${order.number}` : `Orcamento #${quote.number}`}</h1>{order ? <p className="mt-1 text-xs font-bold text-slate-500">Originado do orcamento #{quote.number}</p> : null}</div><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">{status(order ? production?.status : quote.status)}</span></div><p className="mt-2 text-sm font-semibold text-slate-500">{quote.tenant?.brandName || "Merli360"} | Orcamento valido ate {shortDate(quote.validUntil)}</p></header>
 
-    {message ? <p className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-800">{message}</p> : null}
+    {message ? <p className={`rounded-lg border p-3 text-sm font-bold ${messageTone === "error" ? "border-rose-200 bg-rose-50 text-rose-800" : "border-emerald-200 bg-emerald-50 text-emerald-800"}`}>{message}</p> : null}
 
     {pendingReview ? <section className="surface-panel border-amber-200 bg-amber-50 p-5"><div className="flex gap-3"><Clock3 className="shrink-0 text-amber-700" size={22} /><div><h2 className="font-black text-amber-950">Solicitacao recebida</h2><p className="mt-1 text-sm font-semibold text-amber-800">A equipe Studium esta conferindo os itens, o frete e o prazo. Este mesmo link sera liberado para sua aprovacao.</p></div></div></section> : null}
 
-    <section className="surface-panel p-5" id="pedido"><div className="flex flex-wrap items-center justify-between gap-3"><div><div className="flex items-center gap-2"><Eye className="text-emerald-600" size={18} /><h2 className="font-black text-slate-950">Pedido completo</h2></div><p className="mt-1 text-sm text-slate-500">{quote.paymentTerms || "Condicao a combinar"}</p></div><div className="text-right"><small className="block font-bold text-slate-500">{pendingReview ? "Subtotal preliminar" : "Total"}</small><strong className="text-xl text-slate-950">{brl(quote.totalPriceCents)}</strong></div></div><div className="mt-4 divide-y rounded-lg border border-slate-200">{quote.items.map((item: Row) => <div key={item.id} className="flex flex-col justify-between gap-2 p-3 text-sm sm:flex-row"><span><b>{item.description}</b><br /><small className="font-semibold text-slate-500">{quoteItemMeta(item)}</small></span><b>{brl(item.priceCents)}</b></div>)}</div>{quote.freightCents ? <p className="mt-3 flex justify-between text-sm font-bold text-slate-600"><span>Frete</span><span>{brl(quote.freightCents)}</span></p> : null}{shippingAddress(quote) ? <p className="mt-4 flex gap-2 text-sm font-semibold text-slate-600"><MapPin className="shrink-0 text-emerald-600" size={17} />{shippingAddress(quote)}</p> : null}{!order && !pendingReview ? <div className="mt-4"><div className="flex flex-wrap gap-2"><button className="primary-action inline-flex items-center gap-2 px-4 py-2" disabled={Boolean(busyAction) || !canApprove} type="button" onClick={() => setConfirmingApproval(true)}><CheckCircle2 size={16} />Aprovar orcamento</button><a className="secondary-action inline-flex items-center gap-2 px-4 py-2" href={`/api/gestao-grafica/public-quotes/${token}/pdf`} target="_blank" rel="noreferrer"><FileText size={16} />Baixar PDF</a></div>{confirmingApproval ? <div className="mt-4 border-t border-slate-200 pt-4"><p className="font-black text-slate-950">Confirmar aprovacao de {brl(quote.totalPriceCents)}?</p><p className="mt-1 text-sm font-semibold text-slate-600">Ao confirmar, a equipe recebe o pedido e prepara a ordem de producao.</p><div className="mt-3 flex flex-wrap gap-2"><button className="secondary-action px-4 py-2" type="button" disabled={Boolean(busyAction)} onClick={() => setConfirmingApproval(false)}>Voltar</button><button className="primary-action inline-flex items-center gap-2 px-4 py-2" type="button" disabled={Boolean(busyAction)} onClick={() => void approve()}>{busyAction === "quote" ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}Confirmar aprovacao</button></div></div> : null}</div> : null}</section>
+    <section className="surface-panel p-5" id="pedido"><div className="flex flex-wrap items-center justify-between gap-3"><div><div className="flex items-center gap-2"><Eye className="text-emerald-600" size={18} /><h2 className="font-black text-slate-950">Pedido completo</h2></div><p className="mt-1 text-sm text-slate-500">{quote.paymentTerms || "Condicao a combinar"}</p></div><div className="text-right"><small className="block font-bold text-slate-500">{pendingReview ? "Subtotal preliminar" : "Total"}</small><strong className="text-xl text-slate-950">{brl(quote.totalPriceCents)}</strong></div></div><div className="mt-4 divide-y rounded-lg border border-slate-200">{quote.items.map((item: Row) => <div key={item.id} className="flex flex-col justify-between gap-2 p-3 text-sm sm:flex-row"><span><b>{item.description}</b><br /><small className="font-semibold text-slate-500">{quoteItemMeta(item)}</small></span><b>{brl(item.priceCents)}</b></div>)}</div>{quote.freightCents ? <p className="mt-3 flex justify-between text-sm font-bold text-slate-600"><span>Frete</span><span>{brl(quote.freightCents)}</span></p> : null}{shippingAddress(quote) ? <p className="mt-4 flex gap-2 text-sm font-semibold text-slate-600"><MapPin className="shrink-0 text-emerald-600" size={17} />{shippingAddress(quote)}</p> : null}{!order && !pendingReview ? <div className="mt-4">{commercialPending ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-4"><p className="font-black text-amber-950">Aguardando liberacao comercial</p><p className="mt-1 text-sm font-semibold text-amber-800">A equipe Studium esta revisando este orcamento. Assim que for liberado, o botao de aprovacao aparecera neste mesmo link.</p><a className="secondary-action mt-3 inline-flex items-center gap-2 px-4 py-2" href={`/api/gestao-grafica/public-quotes/${token}/pdf`} target="_blank" rel="noreferrer"><FileText size={16} />Baixar PDF</a></div> : <><div className="flex flex-wrap gap-2"><button className="primary-action inline-flex items-center gap-2 px-4 py-2" disabled={Boolean(busyAction) || !canApprove} type="button" onClick={() => setConfirmingApproval(true)}><CheckCircle2 size={16} />Aprovar orcamento</button><a className="secondary-action inline-flex items-center gap-2 px-4 py-2" href={`/api/gestao-grafica/public-quotes/${token}/pdf`} target="_blank" rel="noreferrer"><FileText size={16} />Baixar PDF</a></div>{confirmingApproval ? <div className="mt-4 border-t border-slate-200 pt-4"><p className="font-black text-slate-950">Confirmar aprovacao de {brl(quote.totalPriceCents)}?</p><p className="mt-1 text-sm font-semibold text-slate-600">Ao confirmar, a equipe recebe o pedido e prepara a ordem de producao.</p><div className="mt-3 flex flex-wrap gap-2"><button className="secondary-action px-4 py-2" type="button" disabled={Boolean(busyAction)} onClick={() => setConfirmingApproval(false)}>Voltar</button><button className="primary-action inline-flex items-center gap-2 px-4 py-2" type="button" disabled={Boolean(busyAction)} onClick={() => void approve()}>{busyAction === "quote" ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}Confirmar aprovacao</button></div></div> : null}</>}</div> : null}</section>
 
     {order ? <>
       <section className="surface-panel p-5"><div className="flex items-start gap-3"><Paperclip className="mt-0.5 shrink-0 text-emerald-600" size={20} /><div><h2 className="font-black text-slate-950">Arquivos enviados para producao</h2><p className="mt-1 text-sm font-semibold text-slate-500">Logo, arte, medidas, referencias e arquivos editaveis ficam vinculados ao pedido #{order.number}.</p></div></div><div className="mt-4"><AttachmentList empty="Nenhum arquivo enviado ainda." items={customerFiles} /></div>{canUploadArtwork ? <form className="mt-4 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4" onSubmit={upload}><label className="grid gap-2 text-sm font-black text-slate-700"><span>Adicionar arquivos do pedido</span><input className="block w-full text-sm font-semibold file:mr-3 file:rounded-md file:border-0 file:bg-slate-950 file:px-3 file:py-2 file:font-bold file:text-white" multiple name="files" type="file" /></label><p className="mt-2 text-xs font-semibold text-slate-500">Imagens, PDF, CDR, AI, PSD, EPS, SVG, TIFF, documentos e ZIP/RAR/7Z. Ate 100 MB por arquivo.</p><button className="primary-action mt-3 inline-flex items-center justify-center gap-2 px-4 py-2" disabled={Boolean(busyAction)}>{busyAction === "upload" ? <Loader2 className="animate-spin" size={16} /> : <Upload size={16} />}Enviar para a producao</button></form> : <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm font-bold text-amber-800">A producao ja foi liberada. Fale com a equipe antes de substituir arquivos.</p>}</section>

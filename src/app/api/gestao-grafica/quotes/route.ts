@@ -5,7 +5,7 @@ import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { assertGraphicCommercialPermission, assertGraphicPermission, calculateGraphicPricing, cents, dateOrNull, ensureGraphicDefaults, getGraphicSettings } from "@/lib/graphic";
 import { approveGraphicQuote } from "@/lib/graphic-commercial";
-import { nextQuoteVersion, validateCommercialApproval, validateQuoteStatusAction } from "@/lib/graphic-quotes";
+import { nextQuoteVersion, validateCommercialApproval, validateQuoteCommercialRelease, validateQuoteStatusAction } from "@/lib/graphic-quotes";
 import { calculateCatalogVariantPricing } from "@/lib/graphic-pricing";
 
 export const dynamic = "force-dynamic";
@@ -206,8 +206,12 @@ export async function PUT(request: NextRequest) {
       const nextAction = String(body.nextAction || "").trim() || "Retornar orcamento enviado";
       if (action === "send" && !nextFollowUp) return NextResponse.json({ error: "Informe a data do retorno comercial." }, { status: 400 });
       const result = await db.$transaction(async (tx: any) => {
-        const quote = await tx.graphicQuote.findFirst({ where: { id, tenantId: user.tenantId }, include: { versions: true, items: true } });
+        const quote = await tx.graphicQuote.findFirst({ where: { id, tenantId: user.tenantId }, include: { approvals: { where: { status: "PENDING" } }, versions: true, items: true } });
         if (!quote) throw new Error("QUOTE_NOT_FOUND");
+        if (action === "send") {
+          const commercialReleaseError = validateQuoteCommercialRelease({ approvalRequired: quote.approvalRequired, pendingApprovals: quote.approvals.length });
+          if (commercialReleaseError) throw new Error(commercialReleaseError);
+        }
         const validation = validateQuoteStatusAction(quote.status, nextStatus, reason);
         if (validation) throw new Error(validation);
         const updated = await tx.graphicQuote.update({
@@ -342,7 +346,7 @@ export async function PUT(request: NextRequest) {
       QUOTE_NOT_SENT: "Envie o orcamento ao cliente antes de aprovar.",
       QUOTE_WITHOUT_ITEMS: "Inclua pelo menos um item antes de aprovar.",
       QUOTE_EXPIRED: "Orcamento vencido. Gere uma nova versao antes de aprovar.",
-      QUOTE_COMMERCIAL_APPROVAL_PENDING: "Aprove a excecao comercial antes de gerar pedido.",
+      QUOTE_COMMERCIAL_APPROVAL_PENDING: "Aprove a excecao comercial antes de enviar ao cliente ou gerar o pedido.",
       CATALOG_REQUEST_NOT_PENDING: "Esta solicitacao do catalogo ja foi revisada.",
     };
     const status = error?.message === "UNAUTHORIZED" ? 401 : error?.message === "FORBIDDEN_GRAPHIC_PERMISSION" || error?.message === "FORBIDDEN_MODULE" ? 403 : 400;

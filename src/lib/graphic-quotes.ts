@@ -31,3 +31,7 @@ export function validateCommercialApproval(input: { status: string; approvalRequ
   if (!input.approvalRequired && input.pendingApprovals < 1) return "Orcamento nao possui excecao comercial pendente.";
   return null;
 }
+
+export function validateQuoteCommercialRelease(input: { approvalRequired: boolean; pendingApprovals: number }) {
+  return input.approvalRequired || input.pendingApprovals > 0 ? "QUOTE_COMMERCIAL_APPROVAL_PENDING" : null;
+}

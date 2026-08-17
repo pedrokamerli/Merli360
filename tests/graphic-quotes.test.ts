@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isGraphicQuoteStatus, isTerminalQuoteStatus, nextQuoteVersion, validateCommercialApproval, validateQuoteStatusAction } from "../src/lib/graphic-quotes";
+import { isGraphicQuoteStatus, isTerminalQuoteStatus, nextQuoteVersion, validateCommercialApproval, validateQuoteCommercialRelease, validateQuoteStatusAction } from "../src/lib/graphic-quotes";
 
 test("valida status oficiais de orcamento grafico", () => {
   assert.equal(isGraphicQuoteStatus("DRAFT"), true);
@@ -30,4 +30,10 @@ test("valida aprovacao comercial de excecao", () => {
   assert.match(validateCommercialApproval({ status: "SENT", approvalRequired: false, pendingApprovals: 0 }) || "", /nao possui/);
   assert.match(validateCommercialApproval({ status: "APPROVED", approvalRequired: true, pendingApprovals: 1 }) || "", /nao precisa/);
   assert.match(validateCommercialApproval({ status: "CANCELLED", approvalRequired: true, pendingApprovals: 1 }) || "", /encerrado/);
+});
+
+test("nao envia orcamento com excecao comercial pendente", () => {
+  assert.equal(validateQuoteCommercialRelease({ approvalRequired: false, pendingApprovals: 0 }), null);
+  assert.equal(validateQuoteCommercialRelease({ approvalRequired: true, pendingApprovals: 0 }), "QUOTE_COMMERCIAL_APPROVAL_PENDING");
+  assert.equal(validateQuoteCommercialRelease({ approvalRequired: false, pendingApprovals: 1 }), "QUOTE_COMMERCIAL_APPROVAL_PENDING");
 });

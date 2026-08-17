@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
     const canViewProduction = hasGraphicPermission(graphicRole, "production:update") || graphicRole === "GRAPHIC_OWNER";
     const canViewInventory = hasGraphicPermission(graphicRole, "inventory:view") || canManageSettings;
     const canReviewCatalogRequests = hasGraphicPermission(graphicRole, "catalog-request:review");
+    const canApproveQuotes = hasGraphicPermission(graphicRole, "quote:approve");
     const mineOnly = request.nextUrl.searchParams.get("scope") === "mine" && graphicRole === "GRAPHIC_OPERATIONS";
     await ensureGraphicDefaults(user.tenantId);
     const db = prisma as any;
@@ -184,6 +185,7 @@ export async function GET(request: NextRequest) {
       canViewFinancial,
       canManageSettings,
       canReviewCatalogRequests,
+      canApproveQuotes,
       metrics: dashboard.metrics,
       metricNotes: dashboard.metricNotes,
       qualityItems,
