@@ -2,10 +2,11 @@
 
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { BarChart3, CalendarClock, CheckCircle2, GripVertical, MessageCircle, Plus, Search, Upload, Users } from "lucide-react";
+import { BarChart3, BookOpen, CalendarClock, CheckCircle2, GripVertical, MessageCircle, Plus, Search, Upload, Users } from "lucide-react";
 import { CrmLeadDetailPanel } from "@/components/CrmLeadDetailPanel";
 import { CrmToday } from "@/components/CrmToday";
-import { GestaoGraficaWorkspace } from "@/components/GestaoGraficaWorkspace";
+import { GraphicCommercialWorkspaceV2 } from "@/components/GraphicCommercialWorkspaceV2";
+import { GraphicCatalogShareDialog } from "@/components/GraphicCatalogShareDialog";
 
 type Lead = Record<string, any>;
 type Stage = { id: string; name: string; position: number; color: string; defaultProbability: number; kind: string; active?: boolean };
@@ -42,6 +43,7 @@ export function CrmCommandCenter() {
   const [selectedMode, setSelectedMode] = useState<"operation" | "edit">("operation");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [notice, setNotice] = useState("");
+  const [catalogOpen, setCatalogOpen] = useState(false);
   const importRef = useRef<HTMLInputElement | null>(null);
 
   async function load() {
@@ -113,15 +115,16 @@ export function CrmCommandCenter() {
   }
   const tabs = [["today", "Hoje", CalendarClock], ["leads", "Leads", Users], ["pipeline", "Pipeline", GripVertical], ["graphic", "Vendas da grafica", CheckCircle2], ["dashboard", "Dashboard", BarChart3]] as const;
   return <div className="space-y-4">
-    {tab !== "graphic" ? <header className="surface-panel flex flex-col gap-3 p-5 lg:flex-row lg:items-center lg:justify-between"><div><p className="eyebrow">CRM Comercial</p><h1 className="text-2xl font-black text-slate-950">Central de prospeccao</h1><p className="mt-1 text-sm font-semibold text-slate-500">Leads, cadastros, responsaveis e proximos contatos em um lugar.</p></div><div className="flex flex-wrap gap-2"><button className="secondary-action" onClick={() => { setSelected({ id: "new", name: "", companyName: "", status: "Novo", activities: [], proposedValue: 0, closeChance: 0 }); setSelectedMode("edit"); }}><Plus size={17}/> Novo lead</button><button className="secondary-action" onClick={() => importRef.current?.click()}><Upload size={17}/> Importar Excel</button><input ref={importRef} className="hidden" type="file" accept=".xlsx,.xls,.csv" onChange={importLeads}/><button className="primary-action" onClick={() => queue[0] && openLead(queue[0])}><CheckCircle2 size={17}/> Iniciar prospeccao</button></div></header> : null}
+    {tab !== "graphic" ? <header className="surface-panel flex flex-col gap-3 p-5 lg:flex-row lg:items-center lg:justify-between"><div><p className="eyebrow">CRM Comercial</p><h1 className="text-2xl font-black text-slate-950">Central de prospeccao</h1><p className="mt-1 text-sm font-semibold text-slate-500">Leads, cadastros, responsaveis e proximos contatos em um lugar.</p></div><div className="flex flex-wrap gap-2"><button className="secondary-action" onClick={() => setCatalogOpen(true)}><BookOpen size={17}/> Enviar catalogo</button><button className="secondary-action" onClick={() => { setSelected({ id: "new", name: "", companyName: "", status: "Novo", activities: [], proposedValue: 0, closeChance: 0 }); setSelectedMode("edit"); }}><Plus size={17}/> Novo lead</button><button className="secondary-action" onClick={() => importRef.current?.click()}><Upload size={17}/> Importar Excel</button><input ref={importRef} className="hidden" type="file" accept=".xlsx,.xls,.csv" onChange={importLeads}/><button className="primary-action" onClick={() => queue[0] && openLead(queue[0])}><CheckCircle2 size={17}/> Iniciar prospeccao</button></div></header> : null}
     {tab !== "graphic" ? <nav className="surface-panel flex overflow-x-auto p-2">{tabs.map(([id, label, Icon]) => <button key={id} onClick={() => setTab(id)} className={`flex min-w-28 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-black ${tab === id ? "bg-violet-600 text-white" : "text-slate-600 hover:bg-slate-50"}`}><Icon size={17}/>{label}</button>)}</nav> : null}
     {notice ? <p className="rounded-xl bg-violet-50 px-4 py-3 text-sm font-bold text-violet-800">{notice}</p> : null}
     {tab === "today" ? <CrmToday metrics={metrics} queue={queue} onLead={openLead} onWhatsApp={openWhatsApp} onDone={(lead: Lead) => updateLead(lead.id, { nextAction: "", nextFollowUp: null })} /> : null}
     {tab === "dashboard" ? <DashboardV2 metrics={metrics} /> : null}
     {tab === "leads" ? <LeadsListV2 data={data} search={search} setSearch={setSearch} filter={filter} setFilter={setFilter} cities={cities} segments={segments} selectedIds={selectedIds} setSelectedIds={setSelectedIds} onLead={openLead} onWhatsApp={openWhatsApp} onBulk={bulk} /> : null}
     {tab === "pipeline" ? <Pipeline leads={pipelineItems} stages={data.stages} onLead={openLead} onMove={updateLead} /> : null}
-    {tab === "graphic" ? <><div className="flex justify-end"><button className="secondary-action px-4 py-2" onClick={() => { window.history.replaceState({}, "", "/crm"); setTab("today"); }}>Voltar ao CRM</button></div><GestaoGraficaWorkspace workspace="commercial" /></> : null}
+    {tab === "graphic" ? <GraphicCommercialWorkspaceV2 onBackToLeads={() => { window.history.replaceState({}, "", "/crm"); setTab("today"); }} /> : null}
     {selected ? <CrmLeadDetailPanel lead={selected} initialMode={selectedMode} stages={data.stages} users={data.users} currentUserId={data.currentUserId} currentUserName={data.currentUserName} onClose={() => setSelected(null)} onSave={updateLead} onWhatsApp={openWhatsApp} onChanged={load} /> : null}
+    <GraphicCatalogShareDialog open={catalogOpen} onClose={() => setCatalogOpen(false)} contacts={data.items} />
   </div>;
 }
 

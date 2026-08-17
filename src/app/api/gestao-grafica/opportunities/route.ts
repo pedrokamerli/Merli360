@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireApiUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
-import { assertGraphicPermission, cents, dateOrNull, ensureGraphicDefaults } from "@/lib/graphic";
+import { assertGraphicCommercialPermission, cents, dateOrNull, ensureGraphicDefaults } from "@/lib/graphic";
 import { opportunityQualityAlert, shouldCreateFollowUpTask, validateOpportunityUpdate } from "@/lib/graphic-opportunities";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest) {
   try {
     const user = await requireApiUser();
-    await assertGraphicPermission(user, "opportunity:write");
+    await assertGraphicCommercialPermission(user, "opportunity:write");
     await ensureGraphicDefaults(user.tenantId);
     const body = await request.json();
     const db = prisma as any;
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const user = await requireApiUser();
-    await assertGraphicPermission(user, "opportunity:write");
+    await assertGraphicCommercialPermission(user, "opportunity:write");
     await ensureGraphicDefaults(user.tenantId);
     const body = await request.json();
     const db = prisma as any;

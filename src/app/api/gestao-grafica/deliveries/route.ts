@@ -16,9 +16,9 @@ export async function PUT(request: NextRequest) {
     const status = String(body.status || "");
     if (!id || !status) return NextResponse.json({ error: "Informe a entrega e o status." }, { status: 400 });
     const db = prisma as any;
-    const existing = await db.graphicDelivery.findFirst({ where: { id, tenantId: user.tenantId }, include: { order: true } });
+    const existing = await db.graphicDelivery.findFirst({ where: { id, tenantId: user.tenantId }, include: { order: { include: { productionOrders: { orderBy: { updatedAt: "desc" }, take: 1, select: { status: true } } } } } });
     if (!existing) return NextResponse.json({ error: "Entrega nao encontrada." }, { status: 404 });
-    const validation = validateDeliveryStatusChange({ status, note: body.note, proofAttachmentId: body.proofAttachmentId || existing.proofAttachmentId });
+    const validation = validateDeliveryStatusChange({ status, currentStatus: existing.status, productionStatus: existing.order?.productionOrders?.[0]?.status || null, expectedAt: body.expectedAt || existing.expectedAt, responsibleName: body.responsibleName || existing.responsibleName, note: body.note, proofAttachmentId: body.proofAttachmentId || existing.proofAttachmentId });
     if (validation) return NextResponse.json({ error: validation }, { status: 400 });
 
     const settings = await getGraphicSettings(user.tenantId);

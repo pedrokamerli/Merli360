@@ -25,9 +25,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     ...quote.items.flatMap((item: any, index: number) => [
       `Item ${index + 1}: ${item.description}`,
       `Quantidade: ${item.quantity} ${item.unit} | Prazo: ${item.deadlineDays || "-"} dias`,
+      item.width && item.height ? `Medidas: ${item.width} x ${item.height} mm${item.area ? ` | Area total: ${Number(item.area).toFixed(2)} m2` : ""}` : "",
       `Valor: ${brl(item.priceCents)}`,
       ""
-    ]),
+    ].filter(Boolean)),
     `Total: ${brl(quote.totalPriceCents)}`,
     quote.notes ? `Observacoes: ${quote.notes}` : ""
   ].filter(Boolean);

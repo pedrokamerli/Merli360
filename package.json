@@ -18,6 +18,8 @@
     "db:export-json": "node scripts/export-sqlite-json.js",
     "db:import-json": "node scripts/import-json-to-postgres.js",
     "db:reset-merli": "node scripts/reset-merli-operational-data.js",
+    "setup:studium-team": "tsx scripts/setup-studium-team.ts",
+    "import:graphic-catalog": "tsx scripts/import-graphic-catalog.ts",
     "push:keys": "node scripts/generate-vapid.js"
   },
   "dependencies": {

@@ -55,7 +55,8 @@ async function main() {
     await request("/api/gestao-grafica/production", token, { id: productionId, status: "COMPLETED" }, "PUT");
 
     const realDelivery = await (prisma as any).graphicDelivery.findFirst({ where: { tenantId: tenant.id }, orderBy: { createdAt: "desc" } });
-    await request("/api/gestao-grafica/deliveries", token, { id: realDelivery.id, status: "DELIVERED" }, "PUT");
+    await request("/api/gestao-grafica/deliveries", token, { id: realDelivery.id, status: "SCHEDULED", expectedAt: nextFollowUp, responsibleName: "Equipe de verificacao", method: "RETIRADA" }, "PUT");
+    await request("/api/gestao-grafica/deliveries", token, { id: realDelivery.id, status: "DELIVERED", responsibleName: "Equipe de verificacao", method: "RETIRADA" }, "PUT");
     const receivable = await (prisma as any).graphicReceivable.findFirst({ where: { tenantId: tenant.id }, orderBy: { dueDate: "asc" } });
     await request("/api/gestao-grafica/receivables", token, { id: receivable.id, amount: receivable.amountCents / 100, method: "Pix" });
 

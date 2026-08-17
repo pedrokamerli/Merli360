@@ -3,9 +3,10 @@ import crypto from "crypto";
 import { requireApiUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
-import { assertGraphicPermission, calculateGraphicPricing, cents, dateOrNull, ensureGraphicDefaults, getGraphicSettings } from "@/lib/graphic";
+import { assertGraphicCommercialPermission, assertGraphicPermission, calculateGraphicPricing, cents, dateOrNull, ensureGraphicDefaults, getGraphicSettings } from "@/lib/graphic";
 import { approveGraphicQuote } from "@/lib/graphic-commercial";
 import { nextQuoteVersion, validateCommercialApproval, validateQuoteStatusAction } from "@/lib/graphic-quotes";
+import { calculateCatalogVariantPricing } from "@/lib/graphic-pricing";
 
 export const dynamic = "force-dynamic";
 
@@ -14,10 +15,26 @@ async function nextNumber(db: any, tenantId: string, model: "graphicQuote" | "gr
   return (last?.number || 0) + 1;
 }
 
+function hasValue(value: unknown) {
+  return value !== undefined && value !== null && String(value).trim() !== "";
+}
+
+function isQuoteValidationError(message: string) {
+  return [
+    "Orcamento precisa",
+    "Informe",
+    "Inclua",
+    "Selecione",
+    "Produto nao encontrado",
+    "Opcao do catalogo",
+    "O produto"
+  ].some((prefix) => message.startsWith(prefix));
+}
+
 export async function POST(request: NextRequest) {
   try {
     const user = await requireApiUser();
-    await assertGraphicPermission(user, "quote:create");
+    await assertGraphicCommercialPermission(user, "quote:create");
     await ensureGraphicDefaults(user.tenantId);
     const body = await request.json();
     const db = prisma as any;
@@ -27,19 +44,48 @@ export async function POST(request: NextRequest) {
     const validUntil = dateOrNull(body.validUntil);
     if (!body.preview && !clientId) return NextResponse.json({ error: "Orcamento precisa de cliente." }, { status: 400 });
     if (!body.preview && !validUntil) return NextResponse.json({ error: "Informe a validade do orcamento." }, { status: 400 });
-    if (!requestedItems.length || requestedItems.some((item: any) => !String(item.description || "").trim())) return NextResponse.json({ error: "Inclua pelo menos um item no orcamento." }, { status: 400 });
+    if (!requestedItems.length) return NextResponse.json({ error: "Inclua pelo menos um item no orcamento." }, { status: 400 });
     const settings = await getGraphicSettings(user.tenantId);
     const preparedItems = await Promise.all(requestedItems.map(async (input: any) => {
-      const product = input.productId ? await db.graphicProduct.findFirst({ where: { id: String(input.productId), tenantId: user.tenantId }, include: { components: { include: { material: true } }, processes: { include: { process: true } }, versions: { orderBy: { createdAt: "desc" }, take: 1 } } }) : null;
+      const catalogVariant = input.catalogVariantId ? await db.graphicCatalogVariant.findFirst({
+        where: { id: String(input.catalogVariantId), tenantId: user.tenantId, status: "ACTIVE", catalogItem: { status: "ACTIVE" } },
+        include: { catalogItem: true, product: { include: { components: { include: { material: true } }, processes: { include: { process: true } }, versions: { orderBy: { createdAt: "desc" }, take: 1 } } } }
+      }) : null;
+      if (input.catalogVariantId && !catalogVariant) throw new Error("Opcao do catalogo nao encontrada ou esta oculta.");
+      const product = catalogVariant?.product || (input.productId ? await db.graphicProduct.findFirst({ where: { id: String(input.productId), tenantId: user.tenantId }, include: { components: { include: { material: true } }, processes: { include: { process: true } }, versions: { orderBy: { createdAt: "desc" }, take: 1 } } }) : null);
+      if (input.productId && !product) throw new Error("Produto nao encontrado neste ambiente.");
+      if (!catalogVariant && !product && !hasValue(input.negotiatedPrice)) throw new Error("Selecione um produto cadastrado ou informe um preco manual.");
+      if (!catalogVariant && product && !product.versions?.length) throw new Error(`O produto ${product.name} ainda nao possui ficha de calculo da planilha.`);
       const snapshot = product?.versions?.[0]?.snapshot ? JSON.parse(product.versions[0].snapshot) : null;
       const materialCostCents = product?.components?.reduce((sum: number, component: any) => sum + Math.round((component.material?.currentCostCents || 0) * Number(component.quantity || 1)), 0) || 0;
       const processCostCents = product?.processes?.reduce((sum: number, process: any) => sum + Math.round((process.process?.costCents || 0) * Number(process.quantity || 1)), 0) || 0;
-      const pricing = calculateGraphicPricing({ quantity: Number(input.quantity || 1), width: input.width ? Number(input.width) : null, height: input.height ? Number(input.height) : null, materialCostCents: input.materialCost ? cents(input.materialCost) : materialCostCents, processCostCents: input.processCost ? cents(input.processCost) : processCostCents, outsourcedCostCents: cents(input.outsourcedCost), laborCostCents: cents(input.laborCost), freightCents: cents(input.freight), installationCents: cents(input.installation), extraCostCents: input.extraCost ? cents(input.extraCost) : Number(snapshot?.extraCostCents || 0), discountCents: cents(input.discount), urgencyCents: cents(input.urgency), negotiatedPriceCents: input.negotiatedPrice ? cents(input.negotiatedPrice) : undefined, wastePercent: input.wastePercent ? Number(input.wastePercent || 0) : Number(product?.components?.[0]?.wastePercent ?? snapshot?.wastePercent ?? 0), spreadsheetPricing: Boolean(snapshot?.calculationType), safetyPercent: Number(snapshot?.safetyPercent || 0), finishingCostCents: Number(snapshot?.finishingCostCents || 0), laborHours: Number(snapshot?.laborHours || 0), urgent: String(input.priority || "").toUpperCase() === "URGENTE", ...settings });
-      return { input, product, materialCostCents, processCostCents, pricing };
+      const description = String(input.description || (catalogVariant ? `${catalogVariant.catalogItem.name} - ${catalogVariant.label}` : product?.name || "")).trim();
+      if (!description) throw new Error("Inclua a descricao do item no orcamento.");
+      const width = catalogVariant?.widthMm ?? (hasValue(input.width) ? Number(input.width) : null);
+      const height = catalogVariant?.heightMm ?? (hasValue(input.height) ? Number(input.height) : null);
+      const quantity = catalogVariant?.quantity ?? Number(input.quantity || 1);
+      if (!catalogVariant && snapshot?.calculationType === "M2" && (!(Number(width) > 0) || !(Number(height) > 0))) {
+        throw new Error(`Informe comprimento e largura em milimetros para ${product?.name || description}.`);
+      }
+      const commonPriceInput = {
+        negotiatedPriceCents: hasValue(input.negotiatedPrice) ? cents(input.negotiatedPrice) : undefined,
+        discountCents: cents(input.discount),
+        freightCents: cents(input.freight),
+        installationCents: cents(input.installation),
+        extraCostCents: hasValue(input.extraCost) ? cents(input.extraCost) : Number(snapshot?.extraCostCents || 0),
+        minMarginPercent: Number(settings.minMarginPercent || 0),
+        urgent: String(input.priority || "").toUpperCase() === "URGENTE",
+        urgentMultiplier: Number(settings.urgentMultiplier || 1.15)
+      };
+      const pricing = catalogVariant
+        ? calculateCatalogVariantPricing({ quantity, widthMm: width, heightMm: height, priceCents: catalogVariant.priceCents, costCents: catalogVariant.costCents, ...commonPriceInput })
+        : calculateGraphicPricing({ quantity, width, height, materialCostCents: hasValue(input.materialCost) ? cents(input.materialCost) : materialCostCents, processCostCents: hasValue(input.processCost) ? cents(input.processCost) : processCostCents, outsourcedCostCents: cents(input.outsourcedCost), laborCostCents: cents(input.laborCost), freightCents: cents(input.freight), installationCents: cents(input.installation), extraCostCents: hasValue(input.extraCost) ? cents(input.extraCost) : Number(snapshot?.extraCostCents || 0), discountCents: cents(input.discount), urgencyCents: cents(input.urgency), negotiatedPriceCents: hasValue(input.negotiatedPrice) ? cents(input.negotiatedPrice) : undefined, wastePercent: hasValue(input.wastePercent) ? Number(input.wastePercent || 0) : Number(product?.components?.[0]?.wastePercent ?? snapshot?.wastePercent ?? 0), spreadsheetPricing: Boolean(snapshot?.calculationType), safetyPercent: Number(snapshot?.safetyPercent || 0), finishingCostCents: Number(snapshot?.finishingCostCents || 0), laborHours: Number(snapshot?.laborHours || 0), urgent: commonPriceInput.urgent, ...settings });
+      const normalizedInput = { ...input, description, productId: product?.id || null, catalogVariantId: catalogVariant?.id || null, quantity, width, height, unit: input.unit || "unidade" };
+      return { input: normalizedInput, product, catalogVariant, materialCostCents, processCostCents, pricing };
     }));
     const totals = preparedItems.reduce((sum: any, item: any) => ({ subtotalCents: sum.subtotalCents + item.pricing.suggestedPriceCents, discountCents: sum.discountCents + cents(item.input.discount), urgencyCents: sum.urgencyCents + cents(item.input.urgency), freightCents: sum.freightCents + cents(item.input.freight), installationCents: sum.installationCents + cents(item.input.installation), totalCostCents: sum.totalCostCents + item.pricing.totalCostCents, totalPriceCents: sum.totalPriceCents + item.pricing.negotiatedPriceCents, minimumPriceCents: sum.minimumPriceCents + item.pricing.minimumPriceCents }), { subtotalCents: 0, discountCents: 0, urgencyCents: 0, freightCents: 0, installationCents: 0, totalCostCents: 0, totalPriceCents: 0, minimumPriceCents: 0 });
     const approvalReasons = preparedItems.filter((item: any) => item.pricing.approvalRequired).map((item: any) => item.pricing.approvalReason).filter(Boolean);
-    if (body.preview) return NextResponse.json({ items: preparedItems.map((item: any) => ({ description: item.input.description, quantity: item.pricing.quantity, area: item.pricing.area, suggestedPriceCents: item.pricing.suggestedPriceCents, negotiatedPriceCents: item.pricing.negotiatedPriceCents, quantityMultiplier: item.pricing.quantityMultiplier || 1 })), totals });
+    if (body.preview) return NextResponse.json({ items: preparedItems.map((item: any) => ({ description: item.input.description, quantity: item.pricing.quantity, unitArea: item.pricing.area, totalArea: item.pricing.area * item.pricing.quantity, area: item.pricing.area * item.pricing.quantity, dimensionUnit: "mm", pricingSource: item.catalogVariant ? "CATALOG" : item.product ? "SPREADSHEET" : "MANUAL", suggestedPriceCents: item.pricing.suggestedPriceCents, negotiatedPriceCents: item.pricing.negotiatedPriceCents, quantityMultiplier: item.pricing.quantityMultiplier || 1 })), totals });
 
     const quote = await db.$transaction(async (tx: any) => {
       const number = await nextNumber(tx, user.tenantId, "graphicQuote");
@@ -65,10 +111,14 @@ export async function POST(request: NextRequest) {
       });
       const items = [];
       for (const prepared of preparedItems) {
-        const { input, product, materialCostCents, processCostCents, pricing } = prepared;
-        const item = await tx.graphicQuoteItem.create({ data: { tenantId: user.tenantId, quoteId: created.id, productId: input.productId || null, description: String(input.description).trim(), quantity: Number(input.quantity || 1), width: input.width ? Number(input.width) : null, height: input.height ? Number(input.height) : null, area: input.width && input.height ? Number(input.width) * Number(input.height) : null, unit: String(input.unit || "unidade"), deadlineDays: input.deadlineDays ? Number(input.deadlineDays) : null, costCents: pricing.totalCostCents, priceCents: pricing.negotiatedPriceCents, marginPercent: pricing.marginPercent, costSnapshot: JSON.stringify({ input, pricing, settings }), createdById: user.id, updatedById: user.id } });
+        const { input, product, catalogVariant, materialCostCents, processCostCents, pricing } = prepared;
+        const item = await tx.graphicQuoteItem.create({ data: { tenantId: user.tenantId, quoteId: created.id, productId: product?.id || null, catalogVariantId: catalogVariant?.id || null, description: String(input.description).trim(), quantity: pricing.quantity, width: input.width ? Number(input.width) : null, height: input.height ? Number(input.height) : null, area: pricing.area ? pricing.area * pricing.quantity : null, unit: String(input.unit || "unidade"), deadlineDays: input.deadlineDays ? Number(input.deadlineDays) : null, costCents: pricing.totalCostCents, priceCents: pricing.negotiatedPriceCents, marginPercent: pricing.marginPercent, costSnapshot: JSON.stringify({ source: catalogVariant ? "CATALOG" : product ? "SPREADSHEET" : "MANUAL", input, pricing, settings, catalogVariant: catalogVariant ? { id: catalogVariant.id, label: catalogVariant.label, sourcePriceCents: catalogVariant.sourcePriceCents, validationStatus: catalogVariant.validationStatus } : null }), createdById: user.id, updatedById: user.id } });
         items.push(item);
-        await tx.graphicQuoteItemCost.createMany({ data: [{ tenantId: user.tenantId, quoteItemId: item.id, type: "MATERIAL", description: product?.components?.[0]?.material?.name || "Materiais e perdas previstas", materialId: product?.components?.[0]?.materialId || null, unitCostCents: input.materialCost ? cents(input.materialCost) : materialCostCents, totalCostCents: pricing.materialBase + pricing.wasteCents, status: "PENDING_VALIDATION", createdById: user.id, updatedById: user.id }, { tenantId: user.tenantId, quoteItemId: item.id, type: "PROCESS", description: product?.processes?.[0]?.process?.name || "Processos internos e terceirizados", processId: product?.processes?.[0]?.processId || null, unitCostCents: input.processCost ? cents(input.processCost) : processCostCents, totalCostCents: (input.processCost ? cents(input.processCost) : processCostCents) + cents(input.outsourcedCost), status: "PENDING_VALIDATION", createdById: user.id, updatedById: user.id }, { tenantId: user.tenantId, quoteItemId: item.id, type: "OVERHEAD", description: "Mao de obra, fixos, impostos, taxas e comissao", totalCostCents: pricing.totalCostCents - pricing.materialBase - pricing.wasteCents - (input.processCost ? cents(input.processCost) : processCostCents) - cents(input.outsourcedCost), status: "PENDING_VALIDATION", createdById: user.id, updatedById: user.id }] });
+        if (catalogVariant) {
+          await tx.graphicQuoteItemCost.create({ data: { tenantId: user.tenantId, quoteItemId: item.id, type: "CATALOG", description: `Custo estimado do kit: ${catalogVariant.catalogItem.name}`, unitCostCents: catalogVariant.costCents, totalCostCents: pricing.totalCostCents, status: catalogVariant.validationStatus, createdById: user.id, updatedById: user.id } });
+        } else {
+          await tx.graphicQuoteItemCost.createMany({ data: [{ tenantId: user.tenantId, quoteItemId: item.id, type: "MATERIAL", description: product?.components?.[0]?.material?.name || "Materiais e perdas previstas", materialId: product?.components?.[0]?.materialId || null, unitCostCents: hasValue(input.materialCost) ? cents(input.materialCost) : materialCostCents, totalCostCents: pricing.materialBase + pricing.wasteCents, status: "PENDING_VALIDATION", createdById: user.id, updatedById: user.id }, { tenantId: user.tenantId, quoteItemId: item.id, type: "PROCESS", description: product?.processes?.[0]?.process?.name || "Processos internos e terceirizados", processId: product?.processes?.[0]?.processId || null, unitCostCents: hasValue(input.processCost) ? cents(input.processCost) : processCostCents, totalCostCents: (hasValue(input.processCost) ? cents(input.processCost) : processCostCents) + cents(input.outsourcedCost), status: "PENDING_VALIDATION", createdById: user.id, updatedById: user.id }, { tenantId: user.tenantId, quoteItemId: item.id, type: "OVERHEAD", description: "Mao de obra, fixos, impostos, taxas e comissao", totalCostCents: Math.max(0, pricing.totalCostCents - pricing.materialBase - pricing.wasteCents - (hasValue(input.processCost) ? cents(input.processCost) : processCostCents) - cents(input.outsourcedCost)), status: "PENDING_VALIDATION", createdById: user.id, updatedById: user.id }] });
+        }
       }
       await tx.graphicQuoteVersion.create({ data: { tenantId: user.tenantId, quoteId: created.id, version: 1, snapshot: JSON.stringify({ quote: created, items, totals }), createdById: user.id, updatedById: user.id } });
       if (approvalReasons.length) {
@@ -83,8 +133,9 @@ export async function POST(request: NextRequest) {
     await audit({ tenantId: user.tenantId, userId: user.id, action: "graphic_create_quote", entity: "GraphicQuote", entityId: quote.id, request, metadata: { approvalRequired: quote.approvalRequired } });
     return NextResponse.json({ item: quote });
   } catch (error: any) {
-    const status = error?.message === "UNAUTHORIZED" ? 401 : error?.message === "FORBIDDEN_GRAPHIC_PERMISSION" || error?.message === "FORBIDDEN_MODULE" ? 403 : 500;
-    return NextResponse.json({ error: status === 403 ? "Seu perfil nao permite criar orcamentos." : "Nao foi possivel criar o orcamento.", detail: process.env.NODE_ENV === "production" ? undefined : String(error?.message || error) }, { status });
+    const message = String(error?.message || error);
+    const status = message === "UNAUTHORIZED" ? 401 : message === "FORBIDDEN_GRAPHIC_PERMISSION" || message === "FORBIDDEN_MODULE" ? 403 : isQuoteValidationError(message) ? 400 : 500;
+    return NextResponse.json({ error: status === 403 ? "Seu perfil nao permite criar orcamentos." : status === 400 ? message : "Nao foi possivel criar o orcamento.", detail: process.env.NODE_ENV === "production" ? undefined : message }, { status });
   }
 }
 
@@ -93,7 +144,8 @@ export async function PUT(request: NextRequest) {
     const user = await requireApiUser();
     const body = await request.json();
     const action = String(body.action || "approve");
-    await assertGraphicPermission(user, ["approve", "approve-commercial"].includes(action) ? "quote:approve" : "quote:create");
+    if (action === "approve-commercial") await assertGraphicPermission(user, "quote:approve");
+    else await assertGraphicCommercialPermission(user, "quote:create");
     const id = String(body.id || "");
     if (!id) return NextResponse.json({ error: "Orcamento obrigatorio." }, { status: 400 });
     const db = prisma as any;
@@ -178,6 +230,7 @@ export async function PUT(request: NextRequest) {
               tenantId: user.tenantId,
               quoteId: created.id,
               productId: item.productId,
+              catalogVariantId: item.catalogVariantId,
               description: item.description,
               quantity: item.quantity,
               width: item.width,

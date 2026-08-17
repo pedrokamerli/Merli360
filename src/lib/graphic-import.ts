@@ -48,9 +48,11 @@ function toNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function percentToNumber(value: unknown) {
+export function percentToNumber(value: unknown) {
   const parsed = toNumber(value);
-  return parsed > 0 && parsed <= 1 && String(value ?? "").includes("%") ? parsed * 100 : parsed;
+  // Excel can expose a 5% cell as either "5%" or the raw decimal 0.05,
+  // depending on the cell format. The ERP stores percentages on a 0-100 scale.
+  return parsed > 0 && parsed <= 1 ? parsed * 100 : parsed;
 }
 
 export function moneyToCents(value: unknown) {

@@ -99,6 +99,13 @@ export async function POST(request: NextRequest) {
         await tx.graphicProductVersion.create({ data: { tenantId: user.tenantId, productId: product.id, version: version + 1, snapshot: JSON.stringify(item), createdById: user.id, updatedById: user.id } });
       }
 
+      if (preview.items.some((row) => row.type === "product")) {
+        await tx.graphicProduct.updateMany({
+          where: { tenantId: user.tenantId, name: { in: ["Banner", "Adesivo", "Placa ACM", "Impresso comercial"] } },
+          data: { status: "INACTIVE", updatedById: user.id }
+        });
+      }
+
       return counters;
     });
 

@@ -83,11 +83,18 @@ export async function approveGraphicQuote(input: ApproveGraphicQuoteInput) {
         updatedById: input.userId || null
       }))
     });
+    const expectedAt = new Date(approvedAt);
+    expectedAt.setDate(expectedAt.getDate() + Math.max(...quote.items.map((item: any) => Number(item.deadlineDays || 7)), 7));
+    const priority = quote.items.some((item: any) => {
+      try { return String(JSON.parse(item.costSnapshot || "{}").input?.priority || "").toUpperCase() === "URGENTE"; } catch { return false; }
+    }) ? "URGENT" : "NORMAL";
     const production = await tx.graphicProductionOrder.create({
       data: {
         tenantId: input.tenantId,
         orderId: order.id,
         status: "PENDING",
+        priority,
+        promisedAt: expectedAt,
         checklist: JSON.stringify({ arte: false, medidas: false, material: false, prazo: false, arquivos: false }),
         technicalSnapshot: JSON.stringify({ quote, items: quote.items }),
         createdById: input.userId || null,
@@ -135,8 +142,6 @@ export async function approveGraphicQuote(input: ApproveGraphicQuoteInput) {
       });
     }
 
-    const expectedAt = new Date(approvedAt);
-    expectedAt.setDate(expectedAt.getDate() + Math.max(...quote.items.map((item: any) => Number(item.deadlineDays || 7)), 7));
     await tx.graphicDelivery.create({
       data: { tenantId: input.tenantId, orderId: order.id, method: "RETIRADA", expectedAt, status: "PENDING", createdById: input.userId || null, updatedById: input.userId || null }
     });

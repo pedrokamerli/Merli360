@@ -4,6 +4,7 @@ import { getGraphicRole, hasGraphicAccess, hasGraphicWorkspaceAccess, type Graph
 import { GestaoGraficaWorkspace } from "@/components/GestaoGraficaWorkspace";
 import { GraphicAdministrativeWorkspaceV2 } from "@/components/GraphicAdministrativeWorkspaceV2";
 import { GraphicCommercialWorkspaceV2 } from "@/components/GraphicCommercialWorkspaceV2";
+import { GraphicOperationsWorkspaceV2 } from "@/components/GraphicOperationsWorkspaceV2";
 
 const workspaceAliases: Record<string, GraphicWorkspace> = {
   comercial: "commercial",
@@ -33,5 +34,6 @@ export default async function Page({ params }: { params: Promise<{ workspace: st
   if (resolvedWorkspace === "commercial") return <GestaoGraficaWorkspace workspace="commercial" scope="all" />;
   if (resolvedWorkspace === "administrative") return <GraphicAdministrativeWorkspaceV2 />;
   if (resolvedWorkspace === "sales") return <GraphicCommercialWorkspaceV2 scope="mine" />;
+  if (resolvedWorkspace === "operations") return <GraphicOperationsWorkspaceV2 />;
   return <GestaoGraficaWorkspace workspace={resolvedWorkspace} scope="all" />;
 }

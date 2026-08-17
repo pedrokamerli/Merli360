@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import * as XLSX from "xlsx";
-import { isTemplateRow, moneyToCents, parseGraphicWorkbook } from "../src/lib/graphic-import";
+import { isTemplateRow, moneyToCents, parseGraphicWorkbook, percentToNumber } from "../src/lib/graphic-import";
 
 function workbookBuffer(sheets: Record<string, Record<string, unknown>[]>) {
   const workbook = XLSX.utils.book_new();
@@ -17,6 +17,13 @@ test("normaliza valores monetarios brasileiros da planilha", () => {
   assert.equal(moneyToCents("96.3068"), 9631);
   assert.equal(moneyToCents("6.444"), 644);
   assert.equal(moneyToCents(""), 0);
+});
+
+test("normaliza percentuais formatados ou decimais do Excel", () => {
+  assert.equal(percentToNumber("5%"), 5);
+  assert.equal(percentToNumber("0,05"), 5);
+  assert.equal(percentToNumber(0.08), 8);
+  assert.equal(percentToNumber("10"), 10);
 });
 
 test("ignora linhas modelo da planilha grafica", () => {

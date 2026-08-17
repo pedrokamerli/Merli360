@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireApiModule } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { normalizePhone, CRM_MODULE } from "@/lib/crm";
-import { assertGraphicPermission, ensureGraphicDefaults } from "@/lib/graphic";
+import { assertGraphicCommercialPermission, ensureGraphicDefaults } from "@/lib/graphic";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireApiModule(CRM_MODULE);
-    await assertGraphicPermission(user, "quote:create");
+    await assertGraphicCommercialPermission(user, "quote:create");
     await ensureGraphicDefaults(user.tenantId);
     const { id } = await params;
     const db = prisma as any;

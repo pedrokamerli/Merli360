@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { calculateGraphicPricing } from "../src/lib/graphic-pricing";
+import { calculateCatalogVariantPricing, calculateGraphicPricing } from "../src/lib/graphic-pricing";
 
 test("calcula custo completo, margem, markup e preco minimo", () => {
   const result = calculateGraphicPricing({
     quantity: 1,
-    width: 2,
-    height: 1,
+    width: 2000,
+    height: 1000,
     materialCostCents: 42000,
     processCostCents: 18000,
     outsourcedCostCents: 0,
@@ -34,6 +34,43 @@ test("calcula custo completo, margem, markup e preco minimo", () => {
   assert.match(result.approvalReason, /Margem abaixo/);
   assert.ok(result.marginPercent > 13.9 && result.marginPercent < 14.1);
   assert.ok(result.markupPercent > 16.2 && result.markupPercent < 16.4);
+});
+
+test("usa milimetros sem heuristica ambigua", () => {
+  const common = {
+    quantity: 1,
+    materialCostCents: 100,
+    processCostCents: 0,
+    outsourcedCostCents: 0,
+    laborCostCents: 0,
+    freightCents: 0,
+    installationCents: 0,
+    extraCostCents: 0,
+    discountCents: 0,
+    urgencyCents: 0,
+    wastePercent: 0,
+    fixedCostRatePercent: 0,
+    taxRatePercent: 0,
+    commissionPercent: 0,
+    minMarginPercent: 0
+  };
+  assert.equal(calculateGraphicPricing({ ...common, width: 1000, height: 1000 }).area, 1);
+  assert.equal(calculateGraphicPricing({ ...common, width: 10, height: 10 }).area, 0.0001);
+});
+
+test("mantem o preco exato de um kit do catalogo", () => {
+  const result = calculateCatalogVariantPricing({
+    quantity: 50,
+    widthMm: 400,
+    heightMm: 500,
+    priceCents: 852,
+    costCents: 474,
+    minMarginPercent: 20
+  });
+  assert.equal(result.suggestedPriceCents, 852);
+  assert.equal(result.negotiatedPriceCents, 852);
+  assert.equal(result.area, 0.2);
+  assert.equal(result.quantity, 50);
 });
 
 test("marca desconto como aprovacao obrigatoria mesmo com margem saudavel", () => {

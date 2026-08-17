@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { hasGrantedModule, parseModuleAccess } from "@/lib/module-access";
 
 export const CRM_MODULE = "crm";
 
@@ -9,19 +10,12 @@ export const defaultCrmStages = [
 ];
 
 export function parseModules(value?: string | null) {
-  if (!value || value === "all") return ["all"];
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed.map(String) : String(value).split(",").map((item) => item.trim()).filter(Boolean);
-  } catch {
-    return String(value).split(",").map((item) => item.trim()).filter(Boolean);
-  }
+  return parseModuleAccess(value);
 }
 
 export function hasModuleAccess(user: { role: string; moduleAccess?: string | null }, module: string) {
   if (user.role === "superadmin") return true;
-  const modules = parseModules(user.moduleAccess);
-  return modules.includes("all") || modules.includes(module);
+  return hasGrantedModule(user.moduleAccess, module);
 }
 
 export async function ensureCrmDefaults(tenantId: string) {

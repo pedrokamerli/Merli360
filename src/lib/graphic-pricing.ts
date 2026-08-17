@@ -28,16 +28,84 @@ export type PricingInput = {
   urgentMultiplier?: number;
 };
 
-function dimensionToMeters(value?: number | null) {
+export type CatalogVariantPricingInput = {
+  quantity: number;
+  widthMm?: number | null;
+  heightMm?: number | null;
+  priceCents: number;
+  costCents: number;
+  negotiatedPriceCents?: number;
+  discountCents?: number;
+  freightCents?: number;
+  installationCents?: number;
+  extraCostCents?: number;
+  minMarginPercent: number;
+  urgent?: boolean;
+  urgentMultiplier?: number;
+};
+
+export function millimetersToMeters(value?: number | null) {
   const numeric = Number(value || 0);
   if (!numeric) return 0;
-  return numeric > 20 ? numeric / 1000 : numeric;
+  return numeric / 1000;
+}
+
+export function calculateCatalogVariantPricing(input: CatalogVariantPricingInput) {
+  const quantity = Math.max(1, Number(input.quantity || 1));
+  const widthMeters = millimetersToMeters(input.widthMm);
+  const heightMeters = millimetersToMeters(input.heightMm);
+  const area = widthMeters && heightMeters ? widthMeters * heightMeters : 0;
+  const urgencyMultiplier = input.urgent ? Math.max(1, Number(input.urgentMultiplier || 1.15)) : 1;
+  const freightCents = Math.max(0, Number(input.freightCents || 0));
+  const installationCents = Math.max(0, Number(input.installationCents || 0));
+  const extraCostCents = Math.max(0, Number(input.extraCostCents || 0));
+  const discountCents = Math.max(0, Number(input.discountCents || 0));
+  const baseCostCents = Math.max(0, Number(input.costCents || 0));
+  const basePriceCents = Math.max(0, Number(input.priceCents || 0));
+  const totalCostCents = baseCostCents + freightCents + installationCents + extraCostCents;
+  const suggestedPriceCents = Math.ceil(basePriceCents * urgencyMultiplier) + freightCents + installationCents + extraCostCents;
+  const negotiatedPriceCents = Math.max(0, input.negotiatedPriceCents ?? suggestedPriceCents) - discountCents;
+  const grossProfitCents = negotiatedPriceCents - totalCostCents;
+  const marginPercent = negotiatedPriceCents > 0 ? (grossProfitCents / negotiatedPriceCents) * 100 : 0;
+  const markupPercent = totalCostCents > 0 ? (grossProfitCents / totalCostCents) * 100 : 0;
+  const minimumPriceCents = Math.ceil(totalCostCents / Math.max(0.01, 1 - input.minMarginPercent / 100));
+  const approvalRequired = marginPercent < input.minMarginPercent || discountCents > 0;
+  const approvalReason = [
+    marginPercent < input.minMarginPercent ? "Margem abaixo do minimo configurado." : "",
+    discountCents > 0 ? "Orcamento possui desconto e deve ser revisado conforme limite do tenant." : ""
+  ].filter(Boolean).join(" ");
+
+  return {
+    source: "CATALOG" as const,
+    quantity,
+    area,
+    materialBase: baseCostCents,
+    wasteCents: 0,
+    safetyCents: 0,
+    finishingCents: 0,
+    laborCents: 0,
+    directCostCents: totalCostCents,
+    fixedCostCents: 0,
+    taxCents: 0,
+    commissionCents: 0,
+    totalCostCents,
+    minimumPriceCents,
+    suggestedPriceCents,
+    negotiatedPriceCents,
+    grossProfitCents,
+    marginPercent,
+    markupPercent,
+    quantityMultiplier: baseCostCents > 0 ? basePriceCents / baseCostCents : 1,
+    urgencyMultiplier,
+    approvalRequired,
+    approvalReason
+  };
 }
 
 export function calculateGraphicPricing(input: PricingInput) {
   const quantity = Math.max(1, Number(input.quantity || 1));
-  const widthMeters = dimensionToMeters(input.width);
-  const heightMeters = dimensionToMeters(input.height);
+  const widthMeters = millimetersToMeters(input.width);
+  const heightMeters = millimetersToMeters(input.height);
   const area = widthMeters && heightMeters ? widthMeters * heightMeters : 0;
 
   if (input.spreadsheetPricing) {

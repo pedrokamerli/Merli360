@@ -12,8 +12,9 @@ async function main() {
   const preview = parseGraphicWorkbook(fs.readFileSync(fullPath));
   if (preview.errors.length) throw new Error(preview.errors[0]);
 
-  const tenant = await prisma.tenant.findFirst({ orderBy: { createdAt: "asc" } });
-  if (!tenant) throw new Error("Nenhum tenant encontrado.");
+  const tenantSlug = String(process.argv[3] || "studium").trim();
+  const tenant = await prisma.tenant.findUnique({ where: { slug: tenantSlug } });
+  if (!tenant) throw new Error(`Tenant ${tenantSlug} nao encontrado.`);
   const user = await prisma.user.findFirst({ where: { tenantId: tenant.id }, orderBy: { createdAt: "asc" } });
   const userId = user?.id || null;
   const db = prisma as any;
@@ -72,6 +73,13 @@ async function main() {
       if (process) await tx.graphicProductProcess.create({ data: { tenantId: tenant.id, productId: product.id, processId: process.id, quantity: Math.max(1, item.laborHours || 1), createdById: userId, updatedById: userId } });
       const version = await tx.graphicProductVersion.count({ where: { tenantId: tenant.id, productId: product.id } });
       await tx.graphicProductVersion.create({ data: { tenantId: tenant.id, productId: product.id, version: version + 1, snapshot: JSON.stringify(item), createdById: userId, updatedById: userId } });
+    }
+
+    if (preview.items.some((row) => row.type === "product")) {
+      await tx.graphicProduct.updateMany({
+        where: { tenantId: tenant.id, name: { in: ["Banner", "Adesivo", "Placa ACM", "Impresso comercial"] } },
+        data: { status: "INACTIVE", updatedById: userId }
+      });
     }
 
     return counters;

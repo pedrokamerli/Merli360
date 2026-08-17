@@ -7,6 +7,7 @@ import { getDashboard } from "@/lib/dashboard";
 import { currentMonth, money } from "@/lib/format";
 import { requireUser } from "@/lib/auth";
 import { hasModuleAccess } from "@/lib/crm";
+import { getGraphicRole, hasGraphicAccess } from "@/lib/graphic";
 import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,16 @@ export const revalidate = 0;
 
 export default async function Dashboard({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
   const user = await requireUser();
-  if (!hasModuleAccess(user, "financeiro") && hasModuleAccess(user, "crm")) redirect("/crm");
+  if (!hasModuleAccess(user, "financeiro")) {
+    if (hasModuleAccess(user, "crm")) redirect("/crm");
+    if (hasGraphicAccess(user)) {
+      const role = await getGraphicRole(user);
+      if (role === "GRAPHIC_ADMIN") redirect("/gestao-grafica/administrativo");
+      if (role === "GRAPHIC_ADVISOR") redirect("/gestao-grafica/gestao");
+      redirect("/gestao-grafica/operacao");
+    }
+    redirect("/login");
+  }
   const params = await searchParams;
   const month = params.month ?? currentMonth();
   const data = await getDashboard(month);

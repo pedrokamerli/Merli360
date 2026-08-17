@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
-import { hasGraphicAccess, hasGraphicPermission, getGraphicRole } from "@/lib/graphic";
+import { hasGraphicCommercialAccess, hasGraphicPermission, getGraphicRole } from "@/lib/graphic";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +12,7 @@ const label = (value: string) => ({ OPEN: "Em atendimento", QUOTE_CREATED: "Orca
 export default async function GraphicClientPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const user = await requireUser();
-  if (!hasGraphicAccess(user)) redirect("/");
+  if (!hasGraphicCommercialAccess(user)) redirect("/");
   const role = await getGraphicRole(user);
   const canViewFinancial = hasGraphicPermission(role, "cost:view");
   const db = prisma as any;

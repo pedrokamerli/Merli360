@@ -30,7 +30,7 @@ const rolePermissions: Record<GraphicRole, GraphicPermission[]> = {
   GRAPHIC_OWNER: ["catalog:manage", "settings:manage", "opportunity:write", "quote:create", "quote:approve", "cost:view", "production:update", "receivable:update", "post-sale:update", "report:view", "inventory:view", "inventory:manage", "purchase:manage"],
   GRAPHIC_ADMIN: ["catalog:manage", "settings:manage", "quote:approve", "cost:view", "receivable:update", "report:view", "inventory:view", "inventory:manage", "purchase:manage"],
   GRAPHIC_SALES: ["opportunity:write", "quote:create", "post-sale:update"],
-  GRAPHIC_OPERATIONS: ["opportunity:write", "quote:create", "quote:approve", "post-sale:update", "production:update", "inventory:view"],
+  GRAPHIC_OPERATIONS: ["production:update", "inventory:view"],
   GRAPHIC_ADVISOR: ["report:view", "inventory:view"]
 };
 
@@ -58,8 +58,20 @@ export function hasGraphicAccess(user: { role: string; moduleAccess?: string | n
   return hasModuleAccess(user, GRAPHIC_MODULE);
 }
 
+export function hasGraphicCommercialAccess(user: { role: string; moduleAccess?: string | null }) {
+  return hasGraphicAccess(user) || hasModuleAccess(user, "crm");
+}
+
 export function assertGraphicAccess(user: GraphicUser) {
   if (!hasGraphicAccess(user)) {
+    const error = new Error("FORBIDDEN_MODULE");
+    error.name = "FORBIDDEN_MODULE";
+    throw error;
+  }
+}
+
+export function assertGraphicCommercialAccess(user: GraphicUser) {
+  if (!hasGraphicCommercialAccess(user)) {
     const error = new Error("FORBIDDEN_MODULE");
     error.name = "FORBIDDEN_MODULE";
     throw error;
@@ -128,6 +140,17 @@ export async function assertGraphicPermission(user: GraphicUser, permission: Gra
   return role;
 }
 
+export async function assertGraphicCommercialPermission(user: GraphicUser, permission: "opportunity:write" | "quote:create" | "post-sale:update") {
+  assertGraphicCommercialAccess(user);
+  const role = await getGraphicRole(user);
+  if (!hasGraphicPermission(role, permission)) {
+    const error = new Error("FORBIDDEN_GRAPHIC_PERMISSION");
+    error.name = "FORBIDDEN_GRAPHIC_PERMISSION";
+    throw error;
+  }
+  return role;
+}
+
 export function cents(value: unknown) {
   const parsed = Number(String(value || "0").replace(",", "."));
   return Number.isFinite(parsed) ? Math.round(parsed * 100) : 0;
@@ -139,7 +162,8 @@ export function fromCents(value: number) {
 
 export function dateOrNull(value: unknown) {
   if (!value) return null;
-  const date = new Date(String(value));
+  const text = String(value);
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(text) ? new Date(`${text}T12:00:00.000Z`) : new Date(text);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 

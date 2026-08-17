@@ -25,10 +25,12 @@ import {
   Menu,
   X,
   Settings,
-  Printer
+  Printer,
+  BookOpen
 } from "lucide-react";
 import { clsx } from "clsx";
 import { useState } from "react";
+import { hasGrantedModule } from "@/lib/module-access";
 
 export type SidebarUser = {
   name: string;
@@ -66,13 +68,15 @@ const consultoriaItems = [
 
 const crmItems = [
   { href: "/crm", label: "CRM Comercial", icon: Users },
+  { href: "/gestao-grafica/catalogo", label: "Catalogo", icon: BookOpen },
   { href: "/configuracoes", label: "Configuracoes CRM", icon: Settings }
 ];
 
 function graphicItemsFor(role?: SidebarUser["graphicRole"]) {
   if (!role) return [{ href: "/gestao-grafica", label: "Gestao da Grafica", icon: Printer }];
-  if (role === "GRAPHIC_SALES") return [{ href: "/crm", label: "CRM", icon: Users }];
+  if (role === "GRAPHIC_SALES") return [{ href: "/crm", label: "CRM", icon: Users }, { href: "/gestao-grafica/catalogo", label: "Catalogo", icon: BookOpen }];
   if (role === "GRAPHIC_ADMIN") return [
+    { href: "/gestao-grafica/catalogo", label: "Catalogo", icon: BookOpen },
     { href: "/gestao-grafica/administrativo", label: "Administrativo", icon: Banknote },
     { href: "/gestao-grafica/gestao", label: "Gestao", icon: BarChart3 }
   ];
@@ -82,21 +86,12 @@ function graphicItemsFor(role?: SidebarUser["graphicRole"]) {
   if (role === "GRAPHIC_ADVISOR") return [{ href: "/gestao-grafica/gestao", label: "Gestao", icon: BarChart3 }];
   return [
     { href: "/crm", label: "CRM", icon: Users },
+    { href: "/gestao-grafica/catalogo", label: "Catalogo", icon: BookOpen },
     { href: "/gestao-grafica/operacao", label: "Producao", icon: Package },
     { href: "/gestao-grafica/administrativo", label: "Administrativo", icon: Banknote },
     { href: "/gestao-grafica/gestao", label: "Gestao", icon: BarChart3 },
     { href: "/gestao-grafica/configuracoes", label: "Cadastros", icon: Settings }
   ];
-}
-
-function hasGrantedModule(value: string | undefined, module: string) {
-  if (!value || value === "all") return true;
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) && parsed.map(String).includes(module);
-  } catch {
-    return value.split(",").map((item) => item.trim()).includes(module);
-  }
 }
 
 const agroItems = [
@@ -126,17 +121,25 @@ export function Sidebar({ user }: { user: SidebarUser }) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isAgro = user.tenant.kind === "agro";
-  const hasCrm = hasGrantedModule(user.moduleAccess, "crm");
-  const hasGraphic = hasGrantedModule(user.moduleAccess, "gestao-grafica");
-  const onlyCrm = user.role !== "superadmin" && hasCrm && !hasGraphic;
+  const hasFinance = user.role === "superadmin" || hasGrantedModule(user.moduleAccess, "financeiro");
+  const hasCrm = user.role === "superadmin" || hasGrantedModule(user.moduleAccess, "crm");
+  const hasGraphic = user.role === "superadmin" || hasGrantedModule(user.moduleAccess, "gestao-grafica");
+  const baseItems = hasFinance
+    ? [...(isAgro ? agroItems : consultoriaItems), ...(hasCrm ? [{ href: "/crm", label: "CRM Comercial", icon: Users }] : [])]
+    : hasCrm ? crmItems : [];
   const items = [
-    ...(onlyCrm ? crmItems : [...(isAgro ? agroItems : consultoriaItems), { href: "/crm", label: "CRM Comercial", icon: Users }]),
+    ...baseItems,
     ...(hasGraphic ? graphicItemsFor(user.graphicRole) : []),
     ...(user.role === "superadmin" ? [
       { href: "/usuarios", label: "Usuarios SaaS", icon: Users }
     ] : [])
   ].filter((item, index, rows) => rows.findIndex((candidate) => candidate.href === item.href) === index);
-  const mobileItems = (onlyCrm ? ["/crm", "/configuracoes"] : isAgro ? ["/", "/fluxo", "/vendas", "/receber"] : ["/", "/fluxo", "/receber", "/pagar"])
+  const mobileHrefs = !hasFinance && hasGraphic && !hasCrm
+    ? ["/gestao-grafica/operacao"]
+    : !hasFinance && hasCrm
+      ? ["/crm", ...(hasGraphic ? ["/gestao-grafica/operacao"] : []), "/configuracoes"]
+      : isAgro ? ["/", "/fluxo", "/vendas", "/receber"] : ["/", "/fluxo", "/receber", "/pagar"];
+  const mobileItems = mobileHrefs
     .map((href) => items.find((item) => item.href === href))
     .filter((item): item is (typeof items)[number] => Boolean(item));
 

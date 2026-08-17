@@ -3,14 +3,14 @@ import { requireApiUser } from "@/lib/auth";
 import { audit } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import { buildGraphicDashboard } from "@/lib/graphic-dashboard";
-import { assertGraphicAccess, defaultGraphicRoleForUser, ensureGraphicDefaults, getGraphicRole, GRAPHIC_MODULE, graphicRoleSettingKey, hasGraphicPermission, parseGraphicRole } from "@/lib/graphic";
+import { assertGraphicCommercialAccess, defaultGraphicRoleForUser, ensureGraphicDefaults, getGraphicRole, GRAPHIC_MODULE, graphicRoleSettingKey, hasGraphicPermission, parseGraphicRole } from "@/lib/graphic";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
     const user = await requireApiUser();
-    assertGraphicAccess(user);
+    assertGraphicCommercialAccess(user);
     const graphicRole = await getGraphicRole(user);
     const canViewFinancial = hasGraphicPermission(graphicRole, "cost:view");
     const canManageSettings = hasGraphicPermission(graphicRole, "settings:manage");
@@ -27,15 +27,16 @@ export async function GET(request: NextRequest) {
     const commercialWhere = mineOnly ? { tenantId: user.tenantId, ownerId: user.id } : { tenantId: user.tenantId };
     const quoteWhere = mineOnly ? { tenantId: user.tenantId, responsibleId: user.id } : { tenantId: user.tenantId };
     const orderWhere = mineOnly ? { tenantId: user.tenantId, createdById: user.id } : { tenantId: user.tenantId };
-    const [opportunities, quotes, orders, productionOrders, deliveries, postSales, receivables, products, materials, processes, settings, stages, existingClients, crmLeads] = await Promise.all([
+    const [opportunities, quotes, orders, productionOrders, deliveries, postSales, receivables, products, catalogItems, materials, processes, settings, stages, existingClients, crmLeads] = await Promise.all([
       db.graphicOpportunity.findMany({ where: commercialWhere, orderBy: { updatedAt: "desc" }, take: 100, include: { owner: { select: { name: true, username: true } }, activities: { orderBy: { createdAt: "desc" }, take: 3 }, tasks: { where: { status: "OPEN" }, orderBy: { dueDate: "asc" }, take: 3 } } }),
-      db.graphicQuote.findMany({ where: quoteWhere, orderBy: { updatedAt: "desc" }, take: 100, include: { items: { include: { product: { select: { name: true } } } } } }),
-      db.graphicOrder.findMany({ where: orderWhere, orderBy: { createdAt: "desc" }, take: 50, include: { quote: { include: { opportunity: { select: { productInterest: true } } } } } }),
+      db.graphicQuote.findMany({ where: quoteWhere, orderBy: { updatedAt: "desc" }, take: 100, include: { items: { include: { product: { select: { name: true } }, catalogVariant: { include: { catalogItem: { select: { name: true } } } } } } } }),
+      db.graphicOrder.findMany({ where: orderWhere, orderBy: { createdAt: "desc" }, take: 50, include: { quote: { include: { opportunity: { select: { productInterest: true } }, items: { include: { product: { select: { name: true } } } } } } } }),
       db.graphicProductionOrder.findMany({ where: { tenantId: user.tenantId }, orderBy: { updatedAt: "desc" }, take: 50, include: { order: { include: { quote: { select: { approvedAt: true } } } }, steps: { orderBy: { position: "asc" } }, consumptions: true, reworks: true } }),
       db.graphicDelivery.findMany({ where: { tenantId: user.tenantId }, orderBy: { expectedAt: "asc" }, take: 50, include: { order: true } }),
       db.graphicPostSale.findMany({ where: { tenantId: user.tenantId }, orderBy: { createdAt: "desc" }, take: 50, include: { order: true } }),
       db.graphicReceivable.findMany({ where: { tenantId: user.tenantId }, orderBy: { dueDate: "asc" }, take: 100 }),
-      db.graphicProduct.findMany({ where: { tenantId: user.tenantId, status: "ACTIVE" }, orderBy: { name: "asc" }, include: { components: { include: { material: true } }, processes: { include: { process: true } } } }),
+      db.graphicProduct.findMany({ where: { tenantId: user.tenantId, status: "ACTIVE" }, orderBy: { name: "asc" }, include: { components: { include: { material: true } }, processes: { include: { process: true } }, versions: { orderBy: { createdAt: "desc" }, take: 1, select: { id: true } } } }),
+      db.graphicCatalogItem.findMany({ where: { tenantId: user.tenantId, status: "ACTIVE" }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }], include: { variants: { where: { status: "ACTIVE" }, orderBy: [{ quantity: "asc" }, { widthMm: "asc" }, { heightMm: "asc" }], include: { product: { select: { id: true, name: true } } } } } }),
       db.graphicMaterial.findMany({ where: { tenantId: user.tenantId, status: "ACTIVE" }, orderBy: { name: "asc" } }),
       db.graphicProcess.findMany({ where: { tenantId: user.tenantId, status: "ACTIVE" }, orderBy: { name: "asc" } }),
       db.graphicSetting.findMany({ where: { tenantId: user.tenantId, status: "ACTIVE" } }),
@@ -92,8 +93,8 @@ export async function GET(request: NextRequest) {
     const clients = clientIds.length ? await db.client.findMany({ where: { tenantId: user.tenantId, id: { in: clientIds } }, select: { id: true, name: true, segment: true } }) : [];
     const clientsById = new Map<string, any>(clients.map((item: any) => [item.id, item]));
     const opportunityRows = opportunities.map((item: any) => ({ ...item, ownerName: item.owner?.name || item.owner?.username || "Sem responsavel" }));
-    const quoteRows = quotes.map((item: any) => ({ ...item, client: clientsById.get(item.clientId) || null, productName: item.items?.[0]?.product?.name || item.items?.[0]?.description || "Produto a definir" }));
-    const orderRows = orders.map((item: any) => ({ ...item, clientName: clientsById.get(item.clientId)?.name || "Cliente sem nome", clientSegment: clientsById.get(item.clientId)?.segment || "Sem segmento", productName: item.quote?.opportunity?.productInterest || item.quote?.items?.[0]?.description || "Produto a definir" }));
+    const quoteRows = quotes.map((item: any) => ({ ...item, client: clientsById.get(item.clientId) || null, productName: item.items?.[0]?.catalogVariant?.catalogItem?.name || item.items?.[0]?.product?.name || item.items?.[0]?.description || "Produto a definir" }));
+    const orderRows = orders.map((item: any) => ({ ...item, clientName: clientsById.get(item.clientId)?.name || "Cliente sem nome", clientSegment: clientsById.get(item.clientId)?.segment || "Sem segmento", productName: item.quote?.items?.[0]?.product?.name || item.quote?.items?.[0]?.description || item.quote?.opportunity?.productInterest || "Produto a definir" }));
     const tenantUsers = canManageSettings
       ? await db.user.findMany({ where: { tenantId: user.tenantId }, orderBy: { name: "asc" }, select: { id: true, name: true, username: true, role: true, moduleAccess: true } })
       : [];
@@ -135,6 +136,13 @@ export async function GET(request: NextRequest) {
       , { key: "duplicate-client", label: "Possiveis clientes duplicados", count: duplicateClients.size, action: "Conferir cadastro do cliente" }
     ];
 
+    const availableProducts = products.map((product: any) => ({ ...product, pricingReady: Boolean(product.versions?.length), versions: undefined }));
+    const availableCatalogItems = catalogItems.map((item: any) => ({
+      ...item,
+      variants: item.variants.map((variant: any) => canViewFinancial || canManageSettings ? variant : ({ ...variant, costCents: undefined, sourcePriceCents: undefined, sourceData: undefined }))
+    }));
+    const catalogToken = settings.find((item: any) => item.key === "catalogPublicToken")?.value || null;
+
     return NextResponse.json({
       module: GRAPHIC_MODULE,
       role: graphicRole,
@@ -151,7 +159,9 @@ export async function GET(request: NextRequest) {
       deliveries: canViewProduction ? deliveryRows : [],
       postSales: hasGraphicPermission(graphicRole, "post-sale:update") || graphicRole === "GRAPHIC_OWNER" ? postSales : [],
       receivables: canViewFinancial ? receivables : [],
-      products: canViewFinancial ? products : products.map((product: any) => ({ ...product, components: product.components.map((component: any) => ({ ...component, material: { id: component.material.id, name: component.material.name, unit: component.material.unit } })), processes: product.processes.map((process: any) => ({ ...process, process: { id: process.process.id, name: process.process.name, unit: process.process.unit } })) })),
+      products: canViewFinancial ? availableProducts : availableProducts.map((product: any) => ({ ...product, components: product.components.map((component: any) => ({ ...component, material: { id: component.material.id, name: component.material.name, unit: component.material.unit } })), processes: product.processes.map((process: any) => ({ ...process, process: { id: process.process.id, name: process.process.name, unit: process.process.unit } })) })),
+      catalogItems: availableCatalogItems,
+      catalogPublicPath: catalogToken ? `/public/catalogo/${catalogToken}` : null,
       clients: visibleClients,
       materials: canViewFinancial ? materials : canViewInventory ? materials.map((material: any) => ({ id: material.id, name: material.name, code: material.code, unit: material.unit, currentStock: material.currentStock, minStock: material.minStock, location: material.location, status: material.status })) : [],
       processes,
