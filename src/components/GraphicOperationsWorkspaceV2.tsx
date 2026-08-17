@@ -51,7 +51,7 @@ export function GraphicOperationsWorkspaceV2() {
     setBusyId("");
     if (!response.ok) { setMessage(body.error || "Nao foi possivel atualizar a producao."); return false; }
     setMessage(success);
-    await load();
+    await load(true);
     return true;
   }
 
@@ -63,7 +63,7 @@ export function GraphicOperationsWorkspaceV2() {
     setBusyId("");
     if (!response.ok) { setMessage(body.error || "Nao foi possivel atualizar a expedicao."); return false; }
     setMessage(success);
-    await load();
+    await load(true);
     return true;
   }
 
