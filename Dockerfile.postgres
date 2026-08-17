@@ -28,6 +28,7 @@ COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /app/src ./src
 COPY docker-entrypoint-postgres.sh ./docker-entrypoint-postgres.sh
 
 RUN chmod +x ./docker-entrypoint-postgres.sh && mkdir -p /app/data/uploads
