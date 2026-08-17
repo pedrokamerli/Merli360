@@ -34,7 +34,7 @@ export function AuthenticatedAppShell({ user, children }: { user: SidebarUser; c
   return <div className="app-shell min-h-screen">
     <PwaBoot />
     <Sidebar user={user} />
-    <RoleTutorial user={user} />
+    {pathname !== "/gestao-grafica/catalogo" ? <RoleTutorial user={user} /> : null}
     <main className="min-w-0 p-4 md:p-6 lg:p-8">{children}</main>
     <GlobalAssistantButton />
   </div>;
