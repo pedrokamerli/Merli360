@@ -43,3 +43,20 @@ test("le abas principais da planilha grafica e marca custos como pendentes", () 
   assert.equal(preview.items.find((item) => item.type === "material")?.costCents, 4250);
   assert.match(preview.warnings.join(" "), /PEDIDOS/);
 });
+
+test("importa a hora fixa, faixas de quantidade e regras tecnicas do produto", () => {
+  const buffer = workbookBuffer({
+    PARAMETROS: [{ Parametro: "Aluguel", Valor: "950" }, { Parametro: "Energia", Valor: "1000" }, { Parametro: "Administrativo", Valor: "3500" }, { Parametro: "Outros", Valor: "2500" }, { Parametro: "Funcionários", Valor: "9000" }, { Parametro: "Dias úteis/mês", Valor: "22" }, { Parametro: "Horas/dia", Valor: "8" }],
+    FAIXAS_QTD: [{ "Até quantidade": "20", Multiplicador: "1,90", Uso: "PADRÃO" }, { "Até quantidade": "999999", Multiplicador: "1,25", Uso: "PADRÃO" }],
+    PRODUTOS: [{ Produto: "Banner 280", "Venda por": "m2", "Perda %": "10%", "Acabamento R$/un": "0,50", "Margem segurança %": "5%", "Horas mão de obra": "0", "Tipo cálculo": "M2" }]
+  });
+  const preview = parseGraphicWorkbook(buffer);
+  const product = preview.items.find((item) => item.type === "product");
+  const bands = preview.items.find((item) => item.key === "quantityMultiplierBands");
+
+  assert.equal(preview.items.find((item) => item.key === "fixedHourlyCostCents")?.value, "9631");
+  assert.deepEqual(JSON.parse(bands?.value || "[]"), [{ maxQuantity: 20, multiplier: 1.9 }, { maxQuantity: 999999, multiplier: 1.25 }]);
+  assert.equal(product?.finishingCostCents, 50);
+  assert.equal(product?.safetyPercent, 5);
+  assert.equal(product?.calculationType, "M2");
+});

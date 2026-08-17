@@ -153,6 +153,9 @@ export async function ensureGraphicDefaults(tenantId: string) {
     ["taxRatePercent", "6"],
     ["commissionPercent", "3"],
     ["quantityMultiplierEnabled", "true"],
+    ["fixedHourlyCostCents", "0"],
+    ["quantityMultiplierBands", "[{\"maxQuantity\":20,\"multiplier\":1.9},{\"maxQuantity\":50,\"multiplier\":1.8},{\"maxQuantity\":100,\"multiplier\":1.45},{\"maxQuantity\":200,\"multiplier\":1.35},{\"maxQuantity\":500,\"multiplier\":1.32},{\"maxQuantity\":999999,\"multiplier\":1.25}]"],
+    ["urgentMultiplier", "1.15"],
     ["fileRetentionDays", "1825"],
     ["fileLgpdClassification", "CONFIDENTIAL"],
     ["fileRemovalPolicy", "SOFT_DELETE_ONLY"],
@@ -216,6 +219,8 @@ export async function getGraphicSettings(tenantId: string) {
   await ensureGraphicDefaults(tenantId);
   const rows = await prisma.graphicSetting.findMany({ where: { tenantId, status: "ACTIVE" } });
   const value = Object.fromEntries(rows.map((row) => [row.key, row.value]));
+  let quantityMultiplierBands: Array<{ maxQuantity: number; multiplier: number }> = [];
+  try { quantityMultiplierBands = JSON.parse(value.quantityMultiplierBands || "[]"); } catch { quantityMultiplierBands = []; }
   return {
     minMarginPercent: Number(value.minMarginPercent || 30),
     maxDiscountPercent: Number(value.maxDiscountPercent || 10),
@@ -223,6 +228,9 @@ export async function getGraphicSettings(tenantId: string) {
     taxRatePercent: Number(value.taxRatePercent || 6),
     commissionPercent: Number(value.commissionPercent || 3),
     quantityMultiplierEnabled: value.quantityMultiplierEnabled !== "false",
+    fixedHourlyCostCents: Number(value.fixedHourlyCostCents || 0),
+    quantityMultiplierBands,
+    urgentMultiplier: Number(value.urgentMultiplier || 1.15),
     fileRetentionDays: Number(value.fileRetentionDays || 1825),
     fileLgpdClassification: value.fileLgpdClassification || "CONFIDENTIAL",
     fileRemovalPolicy: value.fileRemovalPolicy || "SOFT_DELETE_ONLY",

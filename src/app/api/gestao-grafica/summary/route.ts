@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     const commercialWhere = mineOnly ? { tenantId: user.tenantId, ownerId: user.id } : { tenantId: user.tenantId };
     const quoteWhere = mineOnly ? { tenantId: user.tenantId, responsibleId: user.id } : { tenantId: user.tenantId };
     const orderWhere = mineOnly ? { tenantId: user.tenantId, createdById: user.id } : { tenantId: user.tenantId };
-    const [opportunities, quotes, orders, productionOrders, deliveries, postSales, receivables, products, materials, processes, settings, stages, allClients] = await Promise.all([
+    const [opportunities, quotes, orders, productionOrders, deliveries, postSales, receivables, products, materials, processes, settings, stages, existingClients, crmLeads] = await Promise.all([
       db.graphicOpportunity.findMany({ where: commercialWhere, orderBy: { updatedAt: "desc" }, take: 100, include: { owner: { select: { name: true, username: true } }, activities: { orderBy: { createdAt: "desc" }, take: 3 }, tasks: { where: { status: "OPEN" }, orderBy: { dueDate: "asc" }, take: 3 } } }),
       db.graphicQuote.findMany({ where: quoteWhere, orderBy: { updatedAt: "desc" }, take: 100, include: { items: { include: { product: { select: { name: true } } } } } }),
       db.graphicOrder.findMany({ where: orderWhere, orderBy: { createdAt: "desc" }, take: 50, include: { quote: { include: { opportunity: { select: { productInterest: true } } } } } }),
@@ -40,8 +40,26 @@ export async function GET(request: NextRequest) {
       db.graphicProcess.findMany({ where: { tenantId: user.tenantId, status: "ACTIVE" }, orderBy: { name: "asc" } }),
       db.graphicSetting.findMany({ where: { tenantId: user.tenantId, status: "ACTIVE" } }),
       db.graphicPipelineStage.findMany({ where: { tenantId: user.tenantId, active: true, status: "ACTIVE" }, orderBy: { position: "asc" } }),
-      db.client.findMany({ where: { tenantId: user.tenantId }, orderBy: { name: "asc" }, take: 500, select: { id: true, name: true, phone: true, email: true, city: true, state: true, segment: true } })
+      db.client.findMany({ where: { tenantId: user.tenantId }, orderBy: { name: "asc" }, take: 500, select: { id: true, name: true, phone: true, email: true, city: true, state: true, segment: true } }),
+      db.lead.findMany({ where: { tenantId: user.tenantId, archivedAt: null }, orderBy: { updatedAt: "desc" }, take: 500, select: { name: true, companyName: true, contact: true, normalizedPhone: true, email: true, city: true, state: true, segment: true, website: true, socialLink: true, notes: true } })
     ]);
+
+    // The legacy CRM remains the source history, while its active contacts are made available for quotes here.
+    const clientKeys = new Set(existingClients.map((client: any) => [String(client.name || "").trim().toLowerCase(), String(client.phone || "").replace(/\D/g, ""), String(client.email || "").trim().toLowerCase(), String(client.city || "").trim().toLowerCase()].join("|")));
+    const clientsToCreate = crmLeads.reduce((rows: any[], lead: any) => {
+      const name = String(lead.companyName || lead.name || "").trim();
+      if (!name) return rows;
+      const phone = String(lead.normalizedPhone || lead.contact || "").replace(/\D/g, "");
+      const email = String(lead.email || "").trim();
+      const city = String(lead.city || "").trim();
+      const key = [name.toLowerCase(), phone, email.toLowerCase(), city.toLowerCase()].join("|");
+      if (clientKeys.has(key)) return rows;
+      clientKeys.add(key);
+      rows.push({ tenantId: user.tenantId, name, type: "grafica", phone: phone || null, email: email || null, city: city || null, state: String(lead.state || "") || null, segment: String(lead.segment || "") || "Grafica", website: String(lead.website || "") || null, instagram: String(lead.socialLink || "") || null, notes: String(lead.notes || "") || null });
+      return rows;
+    }, []);
+    if (clientsToCreate.length) await db.client.createMany({ data: clientsToCreate });
+    const allClients = clientsToCreate.length ? await db.client.findMany({ where: { tenantId: user.tenantId }, orderBy: { name: "asc" }, take: 1000, select: { id: true, name: true, phone: true, email: true, city: true, state: true, segment: true } }) : existingClients;
 
     const graphicAttachments = await db.graphicAttachment.findMany({
       where: {

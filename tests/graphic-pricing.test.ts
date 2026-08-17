@@ -60,3 +60,41 @@ test("marca desconto como aprovacao obrigatoria mesmo com margem saudavel", () =
   assert.match(result.approvalReason, /desconto/);
   assert.ok(result.grossProfitCents > 0);
 });
+
+test("replica a regra de m2, perdas, seguranca, acabamento, hora e faixa da planilha", () => {
+  const result = calculateGraphicPricing({
+    quantity: 10,
+    width: 1000,
+    height: 500,
+    materialCostCents: 850,
+    processCostCents: 850,
+    outsourcedCostCents: 0,
+    laborCostCents: 0,
+    freightCents: 0,
+    installationCents: 0,
+    extraCostCents: 0,
+    discountCents: 0,
+    urgencyCents: 0,
+    wastePercent: 10,
+    safetyPercent: 5,
+    finishingCostCents: 50,
+    laborHours: 0,
+    fixedHourlyCostCents: 9631,
+    quantityMultiplierEnabled: true,
+    quantityMultiplierBands: [{ maxQuantity: 20, multiplier: 1.9 }, { maxQuantity: 999999, multiplier: 1.25 }],
+    spreadsheetPricing: true,
+    taxRatePercent: 0,
+    commissionPercent: 0,
+    fixedCostRatePercent: 0,
+    minMarginPercent: 30
+  });
+
+  assert.equal(result.area, 0.5);
+  assert.equal(result.materialBase, 8500);
+  assert.equal(result.wasteCents, 850);
+  assert.equal(result.safetyCents, 425);
+  assert.equal(result.finishingCents, 500);
+  assert.equal(result.totalCostCents, 10275);
+  assert.equal(result.quantityMultiplier, 1.9);
+  assert.equal(result.suggestedPriceCents, 19523);
+});

@@ -17,6 +17,15 @@ export type PricingInput = {
   commissionPercent: number;
   fixedCostRatePercent: number;
   minMarginPercent: number;
+  spreadsheetPricing?: boolean;
+  safetyPercent?: number;
+  finishingCostCents?: number;
+  laborHours?: number;
+  fixedHourlyCostCents?: number;
+  quantityMultiplierEnabled?: boolean;
+  quantityMultiplierBands?: Array<{ maxQuantity: number; multiplier: number }>;
+  urgent?: boolean;
+  urgentMultiplier?: number;
 };
 
 function dimensionToMeters(value?: number | null) {
@@ -30,6 +39,30 @@ export function calculateGraphicPricing(input: PricingInput) {
   const widthMeters = dimensionToMeters(input.width);
   const heightMeters = dimensionToMeters(input.height);
   const area = widthMeters && heightMeters ? widthMeters * heightMeters : 0;
+
+  if (input.spreadsheetPricing) {
+    const billableMeasure = area ? area * quantity : quantity;
+    const safetyPercent = Number(input.safetyPercent || 0);
+    const materialAndProcessCents = Math.max(0, input.materialCostCents) + Math.max(0, input.processCostCents);
+    const materialBase = Math.round(billableMeasure * materialAndProcessCents);
+    const wasteCents = Math.round(materialBase * (Math.max(0, input.wastePercent || 0) / 100));
+    const safetyCents = Math.round(materialBase * (Math.max(0, safetyPercent) / 100));
+    const finishingCents = Math.round(Math.max(0, input.finishingCostCents || 0) * quantity);
+    const laborCents = Math.round(Math.max(0, input.laborHours || 0) * Math.max(0, input.fixedHourlyCostCents || 0));
+    const directCostCents = materialBase + wasteCents + safetyCents + finishingCents + laborCents + Math.max(0, input.extraCostCents) + Math.max(0, input.outsourcedCostCents) + Math.max(0, input.laborCostCents) + Math.max(0, input.freightCents) + Math.max(0, input.installationCents);
+    const bands = (input.quantityMultiplierBands || []).filter((band) => Number.isFinite(band.maxQuantity) && Number.isFinite(band.multiplier)).sort((a, b) => a.maxQuantity - b.maxQuantity);
+    const quantityMultiplier = input.quantityMultiplierEnabled === false ? 1 : (bands.find((band) => quantity <= band.maxQuantity)?.multiplier || bands.at(-1)?.multiplier || 1);
+    const urgencyMultiplier = input.urgent ? Math.max(1, Number(input.urgentMultiplier || 1.15)) : 1;
+    const suggestedPriceCents = Math.ceil(directCostCents * quantityMultiplier * urgencyMultiplier);
+    const negotiatedPriceCents = Math.max(0, input.negotiatedPriceCents ?? suggestedPriceCents) - Math.max(0, input.discountCents);
+    const grossProfitCents = negotiatedPriceCents - directCostCents;
+    const marginPercent = negotiatedPriceCents > 0 ? (grossProfitCents / negotiatedPriceCents) * 100 : 0;
+    const markupPercent = directCostCents > 0 ? (grossProfitCents / directCostCents) * 100 : 0;
+    const approvalRequired = marginPercent < input.minMarginPercent || input.discountCents > 0;
+    const approvalReason = [marginPercent < input.minMarginPercent ? "Margem abaixo do minimo configurado." : "", input.discountCents > 0 ? "Orcamento possui desconto e deve ser revisado conforme limite do tenant." : ""].filter(Boolean).join(" ");
+    return { quantity, area, materialBase, wasteCents, safetyCents, finishingCents, laborCents, directCostCents, fixedCostCents: 0, taxCents: 0, commissionCents: 0, totalCostCents: directCostCents, minimumPriceCents: suggestedPriceCents, suggestedPriceCents, negotiatedPriceCents, grossProfitCents, marginPercent, markupPercent, quantityMultiplier, urgencyMultiplier, approvalRequired, approvalReason };
+  }
+
   const materialBase = input.materialCostCents * Math.max(1, area ? area * quantity : quantity);
   const wasteCents = Math.round(materialBase * (input.wastePercent / 100));
   const directCostCents = materialBase + wasteCents + input.processCostCents + input.outsourcedCostCents + input.laborCostCents + input.freightCents + input.installationCents + input.extraCostCents;

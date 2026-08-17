@@ -40,18 +40,23 @@ export async function PUT(request: NextRequest) {
       if (!stepId || !isProductionStepStatus(stepStatus)) return NextResponse.json({ error: "Informe etapa e status validos." }, { status: 400 });
       const step = existing.steps.find((item: any) => item.id === stepId);
       if (!step) return NextResponse.json({ error: "Etapa nao encontrada." }, { status: 404 });
+      const previous = existing.steps.filter((item: any) => item.position < step.position).sort((a: any, b: any) => b.position - a.position)[0];
+      if (stepStatus === "IN_PROGRESS" && previous && previous.status !== "COMPLETED" && previous.status !== "SKIPPED") return NextResponse.json({ error: `Conclua a etapa ${previous.name} antes de iniciar ${step.name}.` }, { status: 400 });
+      if (stepStatus === "COMPLETED" && !step.startedAt) return NextResponse.json({ error: "Inicie a etapa antes de conclui-la." }, { status: 400 });
+      const elapsedMinutes = step.startedAt ? Math.max(1, Math.ceil((Date.now() - new Date(step.startedAt).getTime()) / 60000)) : 0;
+      const completedMinutes = Math.max(step.actualMinutes || 0, minutes || elapsedMinutes);
       const item = await db.$transaction(async (tx: any) => {
         const updated = await tx.graphicProductionStep.update({
           where: { id: stepId },
           data: {
             status: stepStatus,
-            actualMinutes: stepStatus === "COMPLETED" ? Math.max(step.actualMinutes || 0, minutes || step.actualMinutes || 0) : step.actualMinutes,
+            actualMinutes: stepStatus === "COMPLETED" ? completedMinutes : step.actualMinutes,
             startedAt: stepStatus === "IN_PROGRESS" && !step.startedAt ? new Date() : step.startedAt,
             completedAt: stepStatus === "COMPLETED" ? new Date() : step.completedAt,
             updatedById: user.id
           }
         });
-        await tx.graphicProductionEvent.create({ data: { tenantId: user.tenantId, productionOrderId: id, userId: user.id, stepName: step.name, action: `STEP_${stepStatus}`, minutes: minutes || null, note: note || null, createdById: user.id, updatedById: user.id } });
+        await tx.graphicProductionEvent.create({ data: { tenantId: user.tenantId, productionOrderId: id, userId: user.id, stepName: step.name, action: `STEP_${stepStatus}`, minutes: stepStatus === "COMPLETED" ? completedMinutes : null, note: note || null, createdById: user.id, updatedById: user.id } });
         return updated;
       });
       await audit({ tenantId: user.tenantId, userId: user.id, action: "graphic_update_production_step", entity: "GraphicProductionStep", entityId: stepId, request, metadata: { stepStatus } });

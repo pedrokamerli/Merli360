@@ -1296,6 +1296,7 @@ function parseChecklist(value: unknown) {
 }
 
 function ProductionCard({ item, materials, issueCategories, onStatus, onAction, onUpload, onRemoveAttachment }: { item: AnyRow; materials: AnyRow[]; issueCategories: string[]; onStatus: (id: string, status: string, extra?: AnyRow) => Promise<void>; onAction: (id: string, payload: AnyRow, success?: string) => Promise<boolean>; onUpload: (file: File, linkedModel: string, linkedId: string, purpose?: string) => Promise<boolean>; onRemoveAttachment: (id: string) => Promise<boolean> }) {
+  const [clock, setClock] = useState(Date.now());
   const checklist = parseChecklist(item.checklist);
   const checklistItems = [
     ["arte", "Arte"],
@@ -1305,14 +1306,24 @@ function ProductionCard({ item, materials, issueCategories, onStatus, onAction, 
     ["arquivos", "Arquivos"]
   ];
   const missing = checklistItems.filter(([key]) => !checklist[key]).length;
+  const activeStep = (item.steps || []).find((step: AnyRow) => step.status === "IN_PROGRESS");
+  useEffect(() => {
+    if (!activeStep?.startedAt) return;
+    const interval = window.setInterval(() => setClock(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [activeStep?.id, activeStep?.startedAt]);
+  const elapsed = (startedAt?: string) => {
+    if (!startedAt) return "00:00:00";
+    const seconds = Math.max(0, Math.floor((clock - new Date(startedAt).getTime()) / 1000));
+    return [Math.floor(seconds / 3600), Math.floor((seconds % 3600) / 60), seconds % 60].map((value) => String(value).padStart(2, "0")).join(":");
+  };
 
   async function toggleChecklist(key: string, value: boolean) {
     await onAction(item.id, { action: "checklist", checklist: { [key]: value } }, "Checklist atualizado.");
   }
 
   async function updateStep(step: AnyRow, stepStatus: string) {
-    const minutes = stepStatus === "COMPLETED" ? prompt("Tempo realizado em minutos", String(step.actualMinutes || "")) || "" : "";
-    await onAction(item.id, { action: "step", stepId: step.id, stepStatus, minutes }, "Etapa atualizada.");
+    await onAction(item.id, { action: "step", stepId: step.id, stepStatus }, stepStatus === "COMPLETED" ? "Etapa concluida e tempo registrado." : "Cronometro iniciado.");
   }
 
   async function registerConsumption() {
@@ -1388,11 +1399,11 @@ function ProductionCard({ item, materials, issueCategories, onStatus, onAction, 
           <div key={step.id} className="rounded-md border border-slate-100 p-2">
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs font-black text-slate-700">{step.name}</p>
-              <span className="text-[10px] font-black text-slate-400">{labelForStatus(step.status)}</span>
+              <span className={step.status === "IN_PROGRESS" ? "text-[10px] font-black text-emerald-700" : "text-[10px] font-black text-slate-400"}>{step.status === "IN_PROGRESS" ? elapsed(step.startedAt) : step.status === "COMPLETED" ? `${step.actualMinutes || 0} min` : labelForStatus(step.status)}</span>
             </div>
             <div className="mt-2 grid grid-cols-2 gap-2">
-              <button className="secondary-action py-2 text-xs" onClick={() => updateStep(step, "IN_PROGRESS")} type="button">Iniciar etapa</button>
-              <button className="secondary-action py-2 text-xs" onClick={() => updateStep(step, "COMPLETED")} type="button">Concluir etapa</button>
+              <button className="secondary-action py-2 text-xs" disabled={step.status !== "PENDING"} onClick={() => updateStep(step, "IN_PROGRESS")} type="button">Iniciar etapa</button>
+              <button className="secondary-action py-2 text-xs" disabled={step.status !== "IN_PROGRESS"} onClick={() => updateStep(step, "COMPLETED")} type="button">Concluir etapa</button>
             </div>
           </div>
         ))}

@@ -16,6 +16,9 @@ export type GraphicImportItem = {
   processCode?: string;
   extraCostCents?: number;
   laborHours?: number;
+  safetyPercent?: number;
+  finishingCostCents?: number;
+  calculationType?: string;
   rowNumber: number;
   sheet: string;
   validationStatus: "PENDING_VALIDATION";
@@ -67,7 +70,7 @@ function rowsFromSheet(workbook: XLSX.WorkBook, sheetName: string) {
   const sheet = workbook.Sheets[sheetName];
   if (!sheet) return [] as Record<string, unknown>[];
   const matrix = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "", raw: false });
-  const knownHeaders = new Set(["parametro", "valor", "material", "produto", "processo", "unidade", "custo", "custo unitario", "codigo", "cliente"]);
+  const knownHeaders = new Set(["parametro", "valor", "material", "produto", "processo", "unidade", "venda por", "custo", "custo unitario", "codigo", "cliente", "ate quantidade", "multiplicador", "uso"]);
   const headerIndex = matrix.findIndex((row) => {
     const labels = row.map((value) => normalize(String(value ?? ""))).filter(Boolean);
     return labels.filter((label) => knownHeaders.has(label)).length >= 2;
@@ -91,7 +94,7 @@ function mapSettings(rows: Record<string, unknown>[], sheet: string) {
     impostos: "taxRatePercent",
     comissao: "commissionPercent"
   };
-  return rows.flatMap((row, index) => {
+  const items = rows.flatMap((row, index) => {
     if (isTemplateRow(row)) return [];
     const rawKey = get(row, ["parametro", "chave", "nome", "configuracao"]);
     const value = get(row, ["valor", "percentual", "%"]);
@@ -99,6 +102,23 @@ function mapSettings(rows: Record<string, unknown>[], sheet: string) {
     if (!key || !value) return [];
     return [{ type: "setting" as const, key, value, rowNumber: Number(row.__rowNumber || index + 2), sheet, validationStatus: "PENDING_VALIDATION" as const }];
   });
+  const values = new Map(rows.map((row) => [normalize(get(row, ["parametro", "chave", "nome", "configuracao"])), moneyToCents(get(row, ["valor", "percentual", "%"]))]));
+  const days = toNumber(get(rows.find((row) => normalize(get(row, ["parametro", "chave", "nome", "configuracao"])).includes("dias uteis")) || {}, ["valor"]));
+  const hours = toNumber(get(rows.find((row) => normalize(get(row, ["parametro", "chave", "nome", "configuracao"])).includes("horas/dia")) || {}, ["valor"]));
+  const monthlyFixedCents = ["aluguel", "energia", "administrativo", "outros", "funcionarios"].reduce((sum, key) => sum + (values.get(key) || 0), 0);
+  if (days > 0 && hours > 0 && monthlyFixedCents > 0) items.push({ type: "setting", key: "fixedHourlyCostCents", value: String(Math.round(monthlyFixedCents / (days * hours))), rowNumber: 0, sheet, validationStatus: "PENDING_VALIDATION" });
+  return items;
+}
+
+function mapQuantityBands(rows: Record<string, unknown>[], sheet: string) {
+  const bands = rows.flatMap((row) => {
+    const use = normalize(get(row, ["uso", "tipo"]));
+    if (use && !use.includes("padrao")) return [];
+    const maxQuantity = toNumber(get(row, ["ate quantidade", "quantidade", "ate qtd"]));
+    const multiplier = toNumber(get(row, ["multiplicador", "multiplicador de venda"]));
+    return maxQuantity > 0 && multiplier > 0 ? [{ maxQuantity, multiplier }] : [];
+  }).sort((a, b) => a.maxQuantity - b.maxQuantity);
+  return bands.length ? [{ type: "setting" as const, key: "quantityMultiplierBands", value: JSON.stringify(bands), rowNumber: 0, sheet, validationStatus: "PENDING_VALIDATION" as const }] : [];
 }
 
 function mapMaterials(rows: Record<string, unknown>[], sheet: string) {
@@ -162,6 +182,9 @@ function mapProducts(rows: Record<string, unknown>[], sheet: string) {
       wastePercent: percentToNumber(get(row, ["perda %", "perda"])),
       extraCostCents: moneyToCents(get(row, ["custo extra fixo", "extra", "custo extra"])),
       laborHours: toNumber(get(row, ["horas mao de obra", "mao de obra"])),
+      finishingCostCents: moneyToCents(get(row, ["acabamento r$/un", "acabamento", "acabamento r$ / un"])),
+      safetyPercent: percentToNumber(get(row, ["margem seguranca %", "margem de seguranca %", "margem seguranca"])),
+      calculationType: get(row, ["tipo calculo", "tipo de calculo"]) || undefined,
       rowNumber: Number(row.__rowNumber || index + 2),
       sheet,
       validationStatus: "PENDING_VALIDATION" as const
@@ -180,10 +203,11 @@ export function parseGraphicWorkbook(buffer: Buffer): GraphicImportPreview {
     const rows = rowsFromSheet(workbook, sheet);
     if (!rows.length) continue;
     if (sheetKey.includes("parametro")) items.push(...mapSettings(rows, sheet));
+    else if (sheetKey.includes("faixasqtd")) items.push(...mapQuantityBands(rows, sheet));
     else if (sheetKey.includes("materiai") || sheetKey.includes("material")) items.push(...mapMaterials(rows, sheet));
     else if (sheetKey.includes("process")) items.push(...mapProcesses(rows, sheet));
     else if (sheetKey.includes("produto")) items.push(...mapProducts(rows, sheet));
-    else if (["clientes", "pedidos", "producao", "faixasqtd"].some((known) => sheetKey.includes(known))) warnings.push(`Aba ${sheet} reconhecida, mas ainda nao e gravada neste ciclo.`);
+    else if (["clientes", "pedidos", "producao"].some((known) => sheetKey.includes(known))) warnings.push(`Aba ${sheet} reconhecida, mas ainda nao e gravada neste ciclo.`);
   }
 
   if (!items.length) errors.push("Nao encontrei itens importaveis nas abas PARAMETROS, MATERIAIS, PROCESSOS ou PRODUTOS.");

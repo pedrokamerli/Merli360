@@ -70,7 +70,7 @@ const crmItems = [
 
 function graphicItemsFor(role?: SidebarUser["graphicRole"]) {
   if (!role) return [{ href: "/gestao-grafica", label: "Gestao da Grafica", icon: Printer }];
-  if (role === "GRAPHIC_SALES") return [{ href: "/gestao-grafica/comercial", label: "CRM", icon: Users }];
+  if (role === "GRAPHIC_SALES") return [{ href: "/crm", label: "CRM", icon: Users }];
   if (role === "GRAPHIC_ADMIN") return [
     { href: "/gestao-grafica/administrativo", label: "Administrativo", icon: Banknote },
     { href: "/gestao-grafica/gestao", label: "Gestao", icon: BarChart3 }
@@ -81,7 +81,7 @@ function graphicItemsFor(role?: SidebarUser["graphicRole"]) {
   ];
   if (role === "GRAPHIC_ADVISOR") return [{ href: "/gestao-grafica/gestao", label: "Gestao", icon: BarChart3 }];
   return [
-    { href: "/gestao-grafica/comercial", label: "CRM", icon: Users },
+    { href: "/crm", label: "CRM", icon: Users },
     { href: "/gestao-grafica/operacao", label: "Producao", icon: Package },
     { href: "/gestao-grafica/administrativo", label: "Administrativo", icon: Banknote },
     { href: "/gestao-grafica/gestao", label: "Gestao", icon: BarChart3 },
@@ -123,7 +123,7 @@ export function Sidebar({ user }: { user: SidebarUser }) {
     ...(user.role === "superadmin" ? [
       { href: "/usuarios", label: "Usuarios SaaS", icon: Users }
     ] : [])
-  ];
+  ].filter((item, index, rows) => rows.findIndex((candidate) => candidate.href === item.href) === index);
   const mobileItems = (onlyCrm ? ["/crm", "/configuracoes"] : isAgro ? ["/", "/fluxo", "/vendas", "/receber"] : ["/", "/fluxo", "/receber", "/pagar"])
     .map((href) => items.find((item) => item.href === href))
     .filter((item): item is (typeof items)[number] => Boolean(item));
